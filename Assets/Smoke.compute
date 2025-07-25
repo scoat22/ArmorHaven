@@ -1,0 +1,79 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWBuffer<float> SmokeMap;
+int Res;
+float DissipationRate;
+float DeltaTime;
+
+float Index3Dto1D(int d, int3 p)
+{                
+    return (p.z * d * d) + (p.y * d) + p.x;
+}
+
+float SampleSmokeMap(float p)
+{
+    return SmokeMap[Index3Dto1D(Res, p)];
+}
+
+[numthreads(4,4,4)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // Index for this cell.
+    int3 p = id.xyz;
+    int CellIndex = Index3Dto1D(Res, p);
+
+    //SmokeMap[i] = SmokeMap[i] - DissipationRate * DeltaTime;
+    
+    // Grab some neighbors
+    const int length = 26;
+    int3 offs[length] =
+    {
+        // Top (9)
+        int3(-1, 1, 1),
+        int3(0,  1, 1),
+        int3(1,  1, 1),
+        int3(-1, 1, 0),
+        int3(0,  1, 0),
+        int3(1,  1, 0),
+        int3(-1, 1, -1),
+        int3(0,  1, -1),
+        int3(1,  1, -1),
+        
+        // Middle (8)
+        int3(-1, 0, 1),
+        int3(0,  0, 1),
+        int3(1,  0, 1),
+        int3(-1, 0, 0),
+        int3(1,  0, 0),
+        int3(-1, 0, -1),
+        int3(0,  0, -1),
+        int3(1,  0, -1),
+        
+        // Bottom (9)
+        int3(-1, -1, 1),
+        int3(0,  -1, 1),
+        int3(1,  -1, 1),
+        int3(-1, -1, 0),
+        int3(0,  -1, 0),
+        int3(1,  -1, 0),
+        int3(-1, -1, -1),
+        int3(0,  -1, -1),
+        int3(1,  -1, -1),
+    };
+    // First sample this cell
+    float CellSample = SmokeMap[CellIndex];
+    float value = CellSample / (float)length;
+    [unroll]
+    for (int i = 0; i < length; i++)
+    {
+        int SampleIndex = Index3Dto1D(Res, p + offs[i]);
+        value += SampleSmokeMap(p + offs[i]) / (float)length;
+        SmokeMap[SampleIndex] / (float) length;
+    }
+    
+    // Now set the new value.
+    SmokeMap[CellIndex] = lerp(CellSample, value, DissipationRate * DeltaTime);
+}
