@@ -38,6 +38,7 @@ Shader "Custom/Thruster"
             {
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
+                float TimeEnd : TEXCOORD1;
             };
 
             sampler2D _MainTex;
@@ -46,10 +47,22 @@ Shader "Custom/Thruster"
             float4 _ColorEnd;
             float _Cutoff;
 
-            v2f vert (appdata v)
+            struct ThrusterData
+            {
+                float4x4 Transform;
+                float Power;
+                float TimeEnd;
+            };
+            StructuredBuffer<ThrusterData> Thrusters;
+
+            v2f vert (appdata v, uint InstanceID : SV_InstanceID)
             {
                 v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                ThrusterData data = Thrusters[InstanceID];
+                o.vertex = mul(data.Transform, float4(v.vertex.xyz, 1.0));
+                o.TimeEnd = data.TimeEnd;
+
+                o.vertex = UnityObjectToClipPos(o.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
 
                 return o;
@@ -67,15 +80,19 @@ Shader "Custom/Thruster"
                 uv.y -= _Time.y;
                 float4 Sample3 = tex2D(_MainTex, uv / 8);
                 //return Sample3;
+ 
+                // Layered noise.
+                float Noise = Sample3 + Sample2 + Sample1;
 
+                float a = lerp(1.0, Noise, saturate(i.uv.y + 0.25));
+                a = lerp(a, 0, saturate(i.uv.y + 0.2));
+                //a = lerp(a, 0, saturate(Sample3));
+
+                // Color
                 // Make gradient from bottom to top.
                 float4 col = lerp(_Color, _ColorEnd, i.uv.y);
-                // Layered noise.
-                Sample3 += Sample1;
-                Sample3 += Sample2;
-
-                float a = lerp(1.0, Sample3, saturate(i.uv.y + 0.25));
-                a = lerp(a, 0, saturate(i.uv.y + 0.2));
+                // Make bright (HDR).
+                //col *= 2;
 
                 //col += step(0.5, Sample1) * 0.1;
                 //float noise = lerp(1.0, Sample3, i.uv.y) * 0.5 + Sample1 * 0.3 + Sample2 * 0.2;
@@ -89,6 +106,15 @@ Shader "Custom/Thruster"
                 //col *= _Color;
                 //col.a = 1.0 - col.a;
                 //col.a = 1;
+                //return max(i.uv.y / 2, saturate(Sample3 + 0.2));
+
+                // 1 second since thrusters last engaged.
+                float FadeTime = 4.0;
+                float TimeFactor = saturate(1.0 - abs(i.TimeEnd - _Time.y) * FadeTime);
+
+                a *= TimeFactor;
+
+                //return float4(col.rgb, a);
                 return float4(col.rgb, a) * 2;
                 return col * 4;
             }

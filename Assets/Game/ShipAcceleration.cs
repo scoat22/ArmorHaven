@@ -10,6 +10,7 @@ public class ShipAcceleration : MonoBehaviour
     public float TurnAcceleration = 5;
     private Vector3 Velocity;
     public bool UseStabilizers = true;
+    public float StabilizerTheshold = 0.01f;
 
     public float Pitch = 1.0f;
     public AudioSource Engine;
@@ -49,8 +50,9 @@ public class ShipAcceleration : MonoBehaviour
         {
             var Ship = ShipManager.Instance.Ships[0];
             var rb = Ship.GetComponent<Rigidbody>();
-            if (rb.angularVelocity.magnitude > 0.01f)
+            if (rb.angularVelocity.magnitude > StabilizerTheshold)
             {
+                Debug.Log("Stabilizing...");
                 AngularAccelerate(-rb.angularVelocity);
             }
         }
@@ -82,15 +84,16 @@ public class ShipAcceleration : MonoBehaviour
 
         foreach (var Thruster in Thrusters)
         {
-            bool IsPerpendicular = Mathf.Abs(Vector3.Dot(Thruster.transform.forward, Direction)) < 0.5f;
+            //bool IsPerpendicular = Mathf.Abs(Vector3.Dot(Thruster.transform.forward, Direction)) < 0.5f;
 
             // For now just assume the acceleration is around the Y axis.
             Vector3 ToThruster = Thruster.transform.position - Ship.transform.position;
             Vector3 Cross = Vector3.Normalize(Vector3.Cross(AngularAcceleration, ToThruster));
             bool IsCorrectDirection = Vector3.Dot(Thruster.transform.forward, Cross) < -0.1f;
-            // Is the thruster in the direction that we want?
-            //if (Mathf.Abs(Vector3.Dot(Direction, Thruster.transform.forward)) < 0.25f && side > 0)
-            if (IsPerpendicular && IsCorrectDirection)// && Mathf.Abs(Vector3.Dot(Direction, Cross)) < 0.5f))
+
+            //if (IsPerpendicular && IsCorrectDirection
+            // This seems to be enough. Now just need to modulate power. 
+            if (IsCorrectDirection)
             {
                 Thrust(rb, Thruster, Power);
             }
@@ -126,6 +129,7 @@ public class ShipAcceleration : MonoBehaviour
         Ship.AddForceAtPosition(-Thruster.transform.forward * Power, Thruster.transform.position);
 
         // Vfx
-        Thruster.transform.GetChild(0).gameObject.SetActive(true);
+        //Thruster.transform.GetChild(0).gameObject.SetActive(true);
+        Thruster.Thrust();
     }
 }

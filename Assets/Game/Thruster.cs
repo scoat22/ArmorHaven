@@ -4,16 +4,20 @@ using UnityEngine;
 
 public class Thruster : MonoBehaviour
 {
-    
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+    public float TimeStart = 0;
 
-    // Update is called once per frame
     void Update()
     {
-        
+        ThrusterSystem.Thrusters.Add(new ThrusterSystem.ThrusterData()
+        {
+            Transform = transform.localToWorldMatrix,
+            Power = 1.0f,
+            TimeEnd = TimeStart,
+        });
+    }
+
+    public void Thrust()
+    {
+        TimeStart = Time.time;
     }
 }
