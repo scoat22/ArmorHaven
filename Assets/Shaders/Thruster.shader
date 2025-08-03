@@ -70,8 +70,14 @@ Shader "Custom/Thruster"
 
             float4 frag (v2f i) : SV_Target
             {
+                // 1 second since thrusters last engaged.
+                float FadeTime = 4.0;
+                float TimeFactor = saturate(1.0 - abs(i.TimeEnd - _Time.y) * FadeTime);
+                //i.uv.y += 1 - TimeFactor;
+
                 // sample the texture
                 float2 uv = i.uv;
+               
                 uv.x *= 3;
                 uv.y -= _Time.y * 8;
                 float4 Sample1 = tex2D(_MainTex, uv);
@@ -79,11 +85,11 @@ Shader "Custom/Thruster"
                 float4 Sample2 = tex2D(_MainTex, uv / 2);
                 uv.y -= _Time.y;
                 float4 Sample3 = tex2D(_MainTex, uv / 8);
-                //return Sample3;
  
                 // Layered noise.
                 float Noise = Sample3 + Sample2 + Sample1;
 
+                // Alpha channel.
                 float a = lerp(1.0, Noise, saturate(i.uv.y + 0.25));
                 a = lerp(a, 0, saturate(i.uv.y + 0.2));
                 //a = lerp(a, 0, saturate(Sample3));
@@ -91,30 +97,9 @@ Shader "Custom/Thruster"
                 // Color
                 // Make gradient from bottom to top.
                 float4 col = lerp(_Color, _ColorEnd, i.uv.y);
-                // Make bright (HDR).
-                //col *= 2;
-
-                //col += step(0.5, Sample1) * 0.1;
-                //float noise = lerp(1.0, Sample3, i.uv.y) * 0.5 + Sample1 * 0.3 + Sample2 * 0.2;
-
-                //col.rgba *= noise + 0.5;
-                //col.a = saturate(lerp(0, noise, 1.0 - i.uv.y * 3));
-                //float4 col = Sample * i.uv.y;
-
-                //clip(Sample.r - _Cutoff - i.uv.x);
-
-                //col *= _Color;
-                //col.a = 1.0 - col.a;
-                //col.a = 1;
-                //return max(i.uv.y / 2, saturate(Sample3 + 0.2));
-
-                // 1 second since thrusters last engaged.
-                float FadeTime = 4.0;
-                float TimeFactor = saturate(1.0 - abs(i.TimeEnd - _Time.y) * FadeTime);
 
                 a *= TimeFactor;
 
-                //return float4(col.rgb, a);
                 return float4(col.rgb, a) * 2;
                 return col * 4;
             }

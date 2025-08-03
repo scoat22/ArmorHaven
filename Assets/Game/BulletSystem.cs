@@ -11,7 +11,7 @@ public class BulletSystem : MonoBehaviour
     public GameObject ImpactPrefab;
     public GameObject SparksPrefab;
 
-    public static int MaxBullets = 100;
+    public static int MaxBullets = 150;
     static int nBullets;
     // Position per bullet
     static NativeArray<Vector3> Positions;
@@ -27,6 +27,9 @@ public class BulletSystem : MonoBehaviour
     public float RicochetDotAngleTolerance = -0.85f;
     public float RicochetEnergyLoss = 0.5f;
     public Transform BoundingBox;
+
+    AudioSource _AudioSource1;
+    AudioSource _AudioSource2;
 
     // Start is called before the first frame update
     void Awake()
@@ -68,7 +71,7 @@ public class BulletSystem : MonoBehaviour
                     //Debug.LogFormat("Hit {0}", hit.collider.name);
 
                     // Play a hit noise at the location
-                    _AudioSource.PlayOneShot(HitNoise); // Sfx
+                    //_AudioSource.PlayOneShot(HitNoise); // Sfx
                     Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx
                     continue;
                 }
@@ -77,8 +80,9 @@ public class BulletSystem : MonoBehaviour
                     // Ricochet.
                     Velocities[i] = Vector3.Reflect(Velocities[i], hit.normal) * RicochetEnergyLoss;
 
-                    _AudioSource.PlayOneShot(RicochetNoise); // Sfx
-                    Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal)); // Vfx
+                    //_AudioSource.PlayOneShot(RicochetNoise); // Sfx
+                    //Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal)); // Vfx
+                    Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(Velocities[i]));
                 }
             }
             // Make a sound
@@ -115,6 +119,8 @@ public class BulletSystem : MonoBehaviour
         // Dispose old
         TempPositions.Dispose();
         TempVelocities.Dispose();
+
+        //RenderSound(dt);
     }
 
     // Update is called once per frame
@@ -158,7 +164,7 @@ public class BulletSystem : MonoBehaviour
             RaymarchGeneric.AddSmoke(Position, 1.0f);
             return true;
         }
-        else Debug.LogErrorFormat("MaxBullets {0} reached.", MaxBullets);
+        else Debug.LogWarningFormat("MaxBullets {0} reached.", MaxBullets);
         return false;
     }
     
@@ -198,7 +204,7 @@ public class BulletSystem : MonoBehaviour
     {
         // We actually need to add the camera's relative velocity for this line rendering "hack" to work.
         //Vector3 CameraVelocity = ShipSystem.Instance.Velocities[0
-        Vector3 CameraVelocity = ShipManager.Instance.Ships[0].GetComponent<Rigidbody>().velocity;
+        Vector3 CameraVelocity = ShipSystem.Instance.Ships[0].GetComponent<Rigidbody>().velocity;
 
         // Use the pool of game objects instead. 
         for (int i = 0; i < nBullets; i++)
@@ -208,8 +214,14 @@ public class BulletSystem : MonoBehaviour
 
             // Set the line renderer properties.
             var lr = _Bullets[i].GetComponent<LineRenderer>();
+            // World-space positions.
             lr.SetPosition(0, Positions[i]);
             lr.SetPosition(1, Positions[i] + (Velocities[i] - CameraVelocity) * dt);
+
+            // Local positions.
+            /*lr.transform.position = Positions[i];
+            lr.SetPosition(0, Vector3.zero);
+            lr.SetPosition(1, (Velocities[i] - CameraVelocity) * dt);*/
         }
         // Disable the rest
         for (int i = nBullets; i < MaxBullets; i++)

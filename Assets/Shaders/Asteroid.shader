@@ -65,7 +65,7 @@ Shader "Instanced/Asteroid"
                 v2f o;
                 float3 p = v.vertex;
 
-                //p = mul(Transforms[InstanceID], float4(p.xyz, 1));
+                p = mul(Transforms[InstanceID], float4(p.xyz, 1));
 
                 o.pos = UnityObjectToClipPos(p);
                 o.worldNormal = UnityObjectToWorldNormal(v.normal);

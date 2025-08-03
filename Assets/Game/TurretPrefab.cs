@@ -7,12 +7,11 @@ public class TurretPrefab : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        var Ship = GetShip(gameObject).GetComponent<Ship>();
+        // Same team as ship.
+        TurretSystem.Instance.AddTurret(transform.parent, transform.position, transform.rotation, Ship.Team);
+        Destroy(gameObject);
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    GameObject GetShip(GameObject Turret) => Turret.transform.parent.parent.parent.gameObject;
 }

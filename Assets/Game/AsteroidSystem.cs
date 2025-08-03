@@ -2,12 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 public class AsteroidSystem : MonoBehaviour
 {
-    //NativeArray<Vector3> Positions;
-    //NativeArray<Quaternion> Rotations;
     NativeArray<Matrix4x4> Transforms;
     int nAsteroids;
     int MaxAsteroids = 100;
@@ -32,11 +29,10 @@ public class AsteroidSystem : MonoBehaviour
         VerticalRange /= 2;
         for (int i = 0; i < MaxAsteroids; i++)
         {
-            AddAsteroid(new Vector3(
-                Random.Range(-Range, Range),
-                Random.Range(-VerticalRange, VerticalRange),
-                Random.Range(-Range, Range)),
-                Random.rotation);
+            //Vector3 p = new Vector3(Random.Range(-Range, Range), Random.Range(-VerticalRange, VerticalRange), Random.Range(-Range, Range));
+            Vector2 dir = Random.insideUnitCircle.normalized;
+            Vector3 p = new Vector3(dir.x, 0, dir.y) * 300.0f;
+            AddAsteroid(p, Random.rotation);
         }
     }
 
@@ -80,6 +76,7 @@ public class AsteroidSystem : MonoBehaviour
             ArgsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             ArgsBuffer.SetData(args);
 
+            // Todo: rotate the data in a shader.
             for (int i = 0; i < nAsteroids; i++)
             {
                 Random.InitState(i);

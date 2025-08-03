@@ -39,7 +39,7 @@ namespace TDLN.CameraControllers
             distance -= Input.GetAxis("Mouse ScrollWheel") * _ScrollSpeed * Mathf.Log(distance);
 
             // Target ship 0 (the player).
-            var target = ShipManager.Instance.Ships[0];
+            var target = ShipSystem.Instance.Ships[0];
 
             if (target && (Input.GetMouseButton(1))) // || Input.GetMouseButton(0))
             {
@@ -91,6 +91,8 @@ namespace TDLN.CameraControllers
             {
                 MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
             }
+
+            //transform.rotation = Quaternion.LookRotation((MouseAimPosition - transform.position).normalized, Vector3.up);
         }
 
         static float ClampAngle(float angle, float min, float max)
