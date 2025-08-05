@@ -9,7 +9,7 @@ public class TurretPrefab : MonoBehaviour
     {
         var Ship = GetShip(gameObject).GetComponent<Ship>();
         // Same team as ship.
-        TurretSystem.Instance.AddTurret(transform.parent, transform.position, transform.rotation, Ship.Team);
+        TurretSystem.Instance.AddTurret(transform.parent, transform.position, transform.rotation, Ship.GetComponent<Team>().value);
         Destroy(gameObject);
     }
 

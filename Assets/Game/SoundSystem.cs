@@ -39,7 +39,11 @@ public class SoundSystem : MonoBehaviour
     void Update()
     {
         // Set listener position.
-        var ShipPos = ShipSystem.Instance.Ships[0].transform.position;
-        Listener.transform.position = (ShipPos + Camera.main.transform.position) * 0.5f;
+        var Ship = ShipSystem.Instance.Ships[0];
+        if (Ship)
+        {
+            var ShipPos = Ship.transform.position;
+            Listener.transform.position = (ShipPos + Camera.main.transform.position) * 0.5f;
+        }
     }
 }

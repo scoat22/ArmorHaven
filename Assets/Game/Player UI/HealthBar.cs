@@ -10,8 +10,10 @@ public class HealthBar : MonoBehaviour
     public void SetFill(float Amount)
     {
         Amount = Mathf.Clamp01(Amount);
-
-        // Todo: if amount is below 10%, make it flash red.
-        Fill.localScale = new Vector3(Amount, 1.0f, 1.0f);
+        if (!float.IsNaN(Amount))
+        {
+            // Todo: if amount is below 10%, make it flash red.
+            Fill.localScale = new Vector3(Amount, 1.0f, 1.0f);
+        }
     }
 }

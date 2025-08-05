@@ -22,7 +22,9 @@ namespace TDLN.CameraControllers
         float x = 0.0f;
         float y = 0.0f;
 
+        Vector3 Position;
         public static Vector3 MouseAimPosition;
+        public static Vector3 Velocity;
 
         void Start()
         {
@@ -41,7 +43,13 @@ namespace TDLN.CameraControllers
             // Target ship 0 (the player).
             var target = ShipSystem.Instance.Ships[0];
 
-            if (target && (Input.GetMouseButton(1))) // || Input.GetMouseButton(0))
+            if (target)
+            {
+                Position = target.transform.position;
+                Velocity = target.GetComponent<Rigidbody>().velocity;
+            }
+
+            if (Input.GetMouseButton(1)) // || Input.GetMouseButton(0))
             {
                 x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
                 y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
@@ -58,7 +66,7 @@ namespace TDLN.CameraControllers
                 Cursor.visible = false;
                 Cursor.lockState = CursorLockMode.Locked;
 
-                y = ClampAngle(y, yMinLimit, yMaxLimit);
+                y = ClampAngle(y, yMinLimit, yMaxLimit);  
             }
             else
             {
@@ -68,7 +76,7 @@ namespace TDLN.CameraControllers
             }
 
             var rotation = Quaternion.Euler(y, x, 0);
-            var position = rotation * new Vector3(0.0f, 0.0f, -distance) + target.transform.position;
+            var position = rotation * new Vector3(0.0f, 0.0f, -distance) + Position;
             transform.rotation = rotation;
             transform.position = position;
 
@@ -76,7 +84,7 @@ namespace TDLN.CameraControllers
             {
                 prevDistance = distance;
                 var rot = Quaternion.Euler(y, x, 0);
-                var po = rot * new Vector3(0.0f, 0.0f, -distance) + target.transform.position;
+                var po = rot * new Vector3(0.0f, 0.0f, -distance) + Position;
                 transform.rotation = rot;
                 transform.position = po;
             }

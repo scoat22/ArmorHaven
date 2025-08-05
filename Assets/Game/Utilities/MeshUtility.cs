@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public static class MeshUtility
 {
@@ -52,4 +53,39 @@ public static class MeshUtility
 
         return mesh;
     }
+
+    public static Mesh CreateLinesMesh(int nLines)
+    {
+        var mesh = new Mesh();
+        int nVertices = nLines * 2;
+
+        var vertices = new Vector3[nVertices];
+        for (int i = 0; i < nVertices; i++)
+        {
+            //vertices[i] = Vector3.zero;
+            vertices[i] = Random.insideUnitCircle;
+        }
+        var indices = new int[nVertices];
+        for (int i = 0; i < nVertices; i++)
+        {
+            indices[i] = i;
+        }
+
+        /*var subMesh = new SubMeshDescriptor()
+        {
+            vertexCount = nVertices,
+            indexCount = nVertices,
+            topology = MeshTopology.Lines,
+        };
+        mesh.subMeshCount = 1;
+        mesh.SetSubMesh(0, subMesh);
+        mesh.subMeshCount = 1;*/
+
+        mesh.SetVertices(vertices);
+        mesh.SetIndices(indices, MeshTopology.Lines, 0, calculateBounds: false);
+        mesh.bounds = new Bounds(Vector3.zero, Vector3.one * float.MaxValue / 4.0f);
+
+        return mesh;
+    }
+
 }

@@ -1,8 +1,10 @@
 using System.Collections;
 using System.Collections.Generic;
+using TDLN.CameraControllers;
 using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class BulletSystem : MonoBehaviour
 {
@@ -13,23 +15,20 @@ public class BulletSystem : MonoBehaviour
 
     public static int MaxBullets = 150;
     static int nBullets;
-    // Position per bullet
-    static NativeArray<Vector3> Positions;
-    // Velocity per bullet
-    static NativeArray<Vector3> Velocities;
+    static NativeArray<Vector3> Positions;  // Position per bullet
+    static NativeArray<Vector3> Velocities; // Velocity per bullet
 
     public AudioClip[] CannonClips;
     public AudioClip HitNoise;
     AudioSource _AudioSource; // Cache AudioSource.
+
+    Mesh _Mesh; // lines mesh
 
     [Header("Ricochet")]
     public AudioClip RicochetNoise;
     public float RicochetDotAngleTolerance = -0.85f;
     public float RicochetEnergyLoss = 0.5f;
     public Transform BoundingBox;
-
-    AudioSource _AudioSource1;
-    AudioSource _AudioSource2;
 
     // Start is called before the first frame update
     void Awake()
@@ -38,9 +37,12 @@ public class BulletSystem : MonoBehaviour
         _AudioSource = GetComponent<AudioSource>();
         Positions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         Velocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
-        _Mesh = MeshUtility.CreateBillboardQuad(1, 1);
+        _BulletMesh = MeshUtility.CreateBillboardQuad(1, 1);
+        _Mesh = MeshUtility.CreateLinesMesh(MaxBullets);
         _Material = CreateMaterial();
-        CreateBulletPrefabs();
+        //CreateBulletPrefabs();
+
+        GetComponent<MeshFilter>().mesh = _Mesh;
     }
 
     void OnDestroy()
@@ -63,16 +65,12 @@ public class BulletSystem : MonoBehaviour
         for (int i = 0; i < nBullets; i++)
         {
             // If it hits a ship, do damage. (Audio-Visual reward)
-            if (Physics.Raycast(Positions[i], Velocities[i], out var hit, Velocities[i].magnitude * dt))
+            if (Physics.Raycast(Positions[i], Velocities[i], out RaycastHit hit, Velocities[i].magnitude * dt))
             {
                 if (Vector3.Dot(Velocities[i].normalized, hit.normal) < RicochetDotAngleTolerance)
                 {
-                    // Hit.
-                    //Debug.LogFormat("Hit {0}", hit.collider.name);
-
-                    // Play a hit noise at the location
-                    //_AudioSource.PlayOneShot(HitNoise); // Sfx
-                    Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx
+                    OnBulletHit(i, hit);
+                    Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx / Sfx (Audio is attached to prefab).
                     continue;
                 }
                 else
@@ -100,7 +98,7 @@ public class BulletSystem : MonoBehaviour
             // If it gets too far away, die (just don't copy to Next)
             if (OutOfRange(Positions[i]))
             {
-                Debug.Log("Bullet left the bounds and was destroyed");
+                //Debug.Log("Bullet left the bounds and was destroyed");
                 continue;
             }
 
@@ -119,22 +117,53 @@ public class BulletSystem : MonoBehaviour
         // Dispose old
         TempPositions.Dispose();
         TempVelocities.Dispose();
+    }
 
-        //RenderSound(dt);
+    void OnBulletHit(int idx, RaycastHit hit)
+    {
+        if (ShipUtility.TryGetShip(hit.collider.transform, out Ship Ship))
+        {
+            // For now hard code damage value.
+            if (Ship.Health > 0)
+                Ship.Health = Mathf.Max(0, Ship.Health - 0.5f);
+            //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
+        }
+    }
+
+    float GetRayThicknessThroughPlane(Vector3 rayDirection, Vector3 planeNormal, float planeThickness)
+    {
+        float angleCos = Mathf.Abs(Vector3.Dot(rayDirection.normalized, planeNormal.normalized));
+        return planeThickness / angleCos;
     }
 
     // Update is called once per frame
     void Update()
     {
         float dt = Time.deltaTime;
+        Vector3 CameraVelocity = CameraOrbit.Velocity;
+        var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+
         for (int i = 0; i < nBullets; i++)
         {
             Positions[i] += Velocities[i] * dt;
         }
 
+        var VertexPositions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp);
+        for (int i = 0; i < nBullets; i++)
+        {
+            VertexPositions[i * 2] = Positions[i];
+            VertexPositions[i * 2 + 1] = Positions[i] + (Velocities[i] - CameraVelocity) * dt;
+        }
+        for (int i = nBullets * 2; i < MaxBullets * 2; i++)
+        {
+            VertexPositions[i] = Vector3.zero;
+        }
+
+        _Mesh.SetVertices(VertexPositions, 0, VertexPositions.Length, Flags);
+
         // Render all the bullets at their current position
         //Render();
-        RenderGameObjects(dt);
+        //RenderGameObjects(dt);
 
         // Test
         //float Range = SmokeRes;
@@ -161,7 +190,7 @@ public class BulletSystem : MonoBehaviour
             var Clips = Instance.CannonClips;
             Instance._AudioSource.PlayOneShot(Clips[Random.Range(0, Clips.Length - 1)]);
             // Add smoke
-            RaymarchGeneric.AddSmoke(Position, 1.0f);
+            //RaymarchGeneric.AddSmoke(Position, 1.0f);
             return true;
         }
         else Debug.LogWarningFormat("MaxBullets {0} reached.", MaxBullets);
@@ -175,7 +204,7 @@ public class BulletSystem : MonoBehaviour
     static GameObject[] _Bullets;
     static Bounds Bounds = new Bounds(Vector3.zero, new Vector3(100, 100, 100));
     static Material _Material;
-    static Mesh _Mesh;
+    static Mesh _BulletMesh;
     static ComputeBuffer ArgsBuffer;
     static ComputeBuffer PositionsBuffer;
 
@@ -204,7 +233,7 @@ public class BulletSystem : MonoBehaviour
     {
         // We actually need to add the camera's relative velocity for this line rendering "hack" to work.
         //Vector3 CameraVelocity = ShipSystem.Instance.Velocities[0
-        Vector3 CameraVelocity = ShipSystem.Instance.Ships[0].GetComponent<Rigidbody>().velocity;
+        Vector3 CameraVelocity = CameraOrbit.Velocity;
 
         // Use the pool of game objects instead. 
         for (int i = 0; i < nBullets; i++)
@@ -239,10 +268,10 @@ public class BulletSystem : MonoBehaviour
             {
                 // Argument buffer used by DrawMeshInstancedIndirect.
                 var args = new NativeArray<uint>(5, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-                args[0] = (uint)_Mesh.GetIndexCount(0);
+                args[0] = (uint)_BulletMesh.GetIndexCount(0);
                 args[1] = (uint)nBullets;
-                args[2] = (uint)_Mesh.GetIndexStart(0);
-                args[3] = (uint)_Mesh.GetBaseVertex(0);
+                args[2] = (uint)_BulletMesh.GetIndexStart(0);
+                args[3] = (uint)_BulletMesh.GetBaseVertex(0);
                 args[4] = 0;
 
                 ArgsBuffer?.Dispose();
@@ -259,7 +288,7 @@ public class BulletSystem : MonoBehaviour
 
                 args.Dispose();
 
-                Graphics.DrawMeshInstancedIndirect(_Mesh, 0, _Material, Bounds, ArgsBuffer);
+                Graphics.DrawMeshInstancedIndirect(_BulletMesh, 0, _Material, Bounds, ArgsBuffer);
                 //buffer.DrawMeshInstancedIndirect(_Mesh, 0, _Material, 0, ArgsBuffer, 0);
             }
         }

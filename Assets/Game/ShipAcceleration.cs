@@ -10,11 +10,17 @@ public class ShipAcceleration : MonoBehaviour
     public float RocketPower = 1.0f;
     public float TurnAcceleration = 5;
     private Vector3 Velocity;
-    public bool UseStabilizers = true;
+    public float PlayerSpeedMultiplier = 2.0f;
 
     public float Pitch = 1.0f;
     public AudioSource Engine;
     public Material mat;
+
+    /*private void Start()
+    {
+        var Ship = ShipSystem.Instance.Ships[0].GetComponent<Ship>();
+        Ship.RocketPower *= PlayerSpeedMultiplier;
+    }*/
 
     private void Update()
     {
@@ -40,9 +46,8 @@ public class ShipAcceleration : MonoBehaviour
         //if (Input.GetKey(KeyCode.Q)) AngularAccelerate(up, 1.0f); //TurnVelocityY += TurnAcceleration * Time.deltaTime; // Spin right.
 
         // Now actually modify the ship (the player's ship).
-        var Ship = ShipSystem.Instance.Ships[0].GetComponent<Ship>();
-
-        Ship.Controls.DesiredDirection = DesiredDirection;
+        var Ship = ShipSystem.Instance.Ships[0];
+        if(Ship) Ship.GetComponent<Ship>().Controls.DesiredDirection = DesiredDirection;
 
         // Todo: change this to the thruster system.
         //Engine.volume = Mathf.Clamp(Velocity.magnitude * 10.0f, 0.2f, 1.0f);

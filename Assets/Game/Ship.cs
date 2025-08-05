@@ -13,8 +13,6 @@ public struct ShipControls
 /// </summary>
 public class Ship : MonoBehaviour
 {
-    public team Team;
-
     /// <summary>
     /// Updated every half second.
     /// </summary>
@@ -29,6 +27,7 @@ public class Ship : MonoBehaviour
     public float Fuel = 1.0f;
 
     // very temp (assume max is 1.0)
+    // The ship will despawn after 5 seconds if Health is 0.
     public float Health = 1.0f;
     public float MaxHealth = 1.0f;
 

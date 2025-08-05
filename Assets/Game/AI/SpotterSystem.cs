@@ -45,7 +45,7 @@ public class SpotterSystem : MonoBehaviour
                 {
                     //Debug.LogFormat("Spotted {0} ships", nSpotted);
                     // Add enemies to spotted list. 
-                    var TeamId = Ship.Team;
+                    var TeamId = Ship.GetComponent<Team>().value;
                     for (int j = 0; j < nSpotted; j++)
                     {
                         var SpottedEnemy = Colliders[j];
@@ -53,8 +53,8 @@ public class SpotterSystem : MonoBehaviour
                         if (SpottedEnemy.TryGetComponent(out Ship SpottedShip))
                         {
                             // Make sure its not our team (this will also avoid targetting self).
-                            var Team = SpottedShip.Team;
-                            if (Team != Ship.Team && Team != team.Neutral)
+                            var Team = SpottedShip.GetComponent<Team>().value;
+                            if (Team != TeamId && Team != team.Neutral)
                             {
                                 var Payload = new SpottedEnemy()
                                 {

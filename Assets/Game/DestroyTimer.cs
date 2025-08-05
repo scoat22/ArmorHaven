@@ -7,7 +7,7 @@ public class DestroyTimer : MonoBehaviour
     public float Seconds;
 
     // Start is called before the first frame update
-    private void OnEnable()
+    private void Start()
     {
         StartCoroutine(DestroyIn(Seconds));
     }

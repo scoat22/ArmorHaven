@@ -26,6 +26,7 @@ public class Radar : MonoBehaviour
     private float Timer = 0;
     public float CurrentSweepAngle = 0.0f;
     enum Type { Enemy, Asteroid }
+    Vector3 MainShipPosition;
 
     // Start is called before the first frame update
     void Start()
@@ -124,11 +125,12 @@ public class Radar : MonoBehaviour
     {
         e.nBlips = 0;
         var Ships = ShipSystem.Instance.Ships;
+        var nShips = ShipSystem.Instance.nShips;
         var Asteroids = BigAsteroidSystem.Instance.Asteroids;
-        var MainShipPosition = Ships[0].transform.position;
+        if(Ships[0] != null) MainShipPosition = Ships[0].transform.position;
 
         // Render enemies
-        for (int i = 1; i < Ships.Count; i++)
+        for (int i = 1; i < nShips; i++)
         {
             if (e.nBlips == e.Blips.Length) break;
             AddBlip(ref e, MainShipPosition, Ships[i], Type.Enemy);
