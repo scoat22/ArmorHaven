@@ -24,6 +24,20 @@ public static class ShipUtility
         return false;
     }
 
+    public static int EnemyCount()
+    {
+        var Ships = ShipSystem.Instance.Ships;
+        var nShips = ShipSystem.Instance.nShips;
+
+        // Count enemies.
+        int nEnemies = 0;
+        for (int i = 0; i < nShips; i++)
+            if (Ships[i].GetComponent<Team>().value == team.Enemies)
+                nEnemies++;
+
+        return nEnemies;
+    }
+
     public static T TryAddComponent<T>(this GameObject go) where T : Component
     {
         if (go.GetComponent<T>() != null)

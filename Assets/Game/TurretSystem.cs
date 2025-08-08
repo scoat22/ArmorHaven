@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using TDLN.CameraControllers;
 using Unity.Collections;
 using UnityEngine;
-using static UnityEditor.Experimental.GraphView.GraphView;
 
 public class TurretSystem : MonoBehaviour
 {
@@ -18,17 +17,30 @@ public class TurretSystem : MonoBehaviour
     public GameObject MuzzleFlashPrefab;
     public float TurnAcceleration = 5.0f;
     public float MaxRotationSpeed = 45f;
-    public float BulletSpeed = 30.0f;
-    public float ReloadSpeed = 3.0f;
     public float MinPitch = 270.0f;
     public float MaxPitch = 360.0f;
     public float MinYaw = -90.0f;
     public float MaxYaw = 90.0f;
     public float AngleDotTolerance = 0.03f;
+    public float TurretBlockRange = 50.0f;
 
-    public AudioClip[] TurretShotClips;
+    [System.Serializable]
+    public struct TurretStyle
+    {
+        public float BulletSpeed;
+        public float ReloadSpeed;
+        public AudioClip Clip;
+    }
 
-    int nTurrets;
+    public enum TurretType
+    {
+        HeavyTurret,
+        LightTurret,
+    }
+
+    public TurretStyle[] TurretModels;
+
+    public int nTurrets;
     NativeArray<Turret> TurretData;
 
     // Every frame each turret gets their turn spotting
@@ -43,16 +55,20 @@ public class TurretSystem : MonoBehaviour
         public float PitchVelocity;
         public float Pitch;
         public float ReloadTimeRemaining;
+        public TurretType Type;
 
         // AI stuff
         public team Team;
         public bool HasTarget;
         public Vector3 AimDirection;
         public SpottedEnemy SpottedEnemy;
+
+        // Show X if view is blocked?
+        public bool IsPlayer;
     }
 
     // Turret transforms
-    GameObject[] Turrets;
+    GameObject[] TurretGos;
 
 
     // Start is called before the first frame update
@@ -60,7 +76,7 @@ public class TurretSystem : MonoBehaviour
     {
         Instance = this;
         TurretData = new NativeArray<Turret>(MaxTurrets, Allocator.Persistent);
-        Turrets = new GameObject[MaxTurrets];
+        TurretGos = new GameObject[MaxTurrets];
 
         /*var ExistingTurrets = FindObjectsByType<TurretPrefab>(FindObjectsSortMode.None);
         Debug.LogFormat("Replacing {0} existing turrets", ExistingTurrets.Length);
@@ -79,18 +95,20 @@ public class TurretSystem : MonoBehaviour
         TurretData.Dispose();
     }
 
-    public void AddTurret(Transform Parent, Vector3 Position, Quaternion Rotation, team Team)
+    public void AddTurret(Transform Parent, Vector3 Position, Quaternion Rotation, TurretType type, team Team, bool IsPlayer)
     {
         if (nTurrets < MaxTurrets)
         {
-            Turrets[nTurrets] = Instantiate(TurretPrefab);
+            TurretGos[nTurrets] = Instantiate(TurretPrefab);
             TurretData[nTurrets] = new Turret()
             {
+                Type = type,
                 Team = Team,
+                IsPlayer = IsPlayer,
             };
-            Turrets[nTurrets].transform.parent = Parent;
-            Turrets[nTurrets].transform.position = Position;
-            Turrets[nTurrets].transform.rotation = Rotation;
+            TurretGos[nTurrets].transform.parent = Parent;
+            TurretGos[nTurrets].transform.position = Position;
+            TurretGos[nTurrets].transform.rotation = Rotation;
             nTurrets++;
         }
         else Debug.LogError("Reached max turrets");
@@ -103,7 +121,7 @@ public class TurretSystem : MonoBehaviour
         int nNoTargets = 0;
         //if (Input.GetMouseButton(1)) return;
         var NewTurretData = new NativeArray<Turret>(MaxTurrets, Allocator.Persistent);
-        var NewTurrets = new GameObject[MaxTurrets];
+        var NewTurretGos = new GameObject[MaxTurrets];
         int nNewTurrets = 0;
         var PlayerVelocity = Vector3.zero;
         if (ShipSystem.Instance.nShips > 0) PlayerVelocity = ShipSystem.Instance.Ships[0].GetComponent<Rigidbody>().velocity;
@@ -119,30 +137,40 @@ public class TurretSystem : MonoBehaviour
         for (int i = 0; i < nTurrets; i++)
         {
             var Turret = TurretData[i];
-            var TurretGo = Turrets[i].transform;
-            var Barrel = Turrets[i].transform.GetChild(0);
+            var TurretGo = TurretGos[i];
+
+            // If we destroyed it from some other system, skip (I know, a little messy. But for now we're just writing looser code).
+            if (TurretGo == null)
+                continue;
+
+            var Barrel = TurretGos[i].transform.GetChild(0);
             var Enemies = TeamSystem.DataPerTeam[(int)Turret.Team];
-            var Ship = GetShip(Turrets[i]);
-            var CanParse = int.TryParse(Ship.name, out int ShipIdx);
-            if (!CanParse) Debug.LogError("Can't parse ship name: " + Ship.name, Ship);
-            var IsPlayer = ShipIdx == 0;
+            bool IsPlayer = Turret.IsPlayer;
 
             // If the turret is dead, skip.
-            if (Turrets[i].GetComponent<global::Turret>().Destroy) 
+            if (TurretGos[i].GetComponent<TurretComponent>().Skip)
+            {
+                Destroy(TurretGos[i]);
                 continue;
+            }
 
             if (IsPlayer)
             {
                 Turret.HasTarget = true;
-                Turret.AimDirection = (CameraOrbit.MouseAimPosition - TurretGo.position - PlayerVelocity).normalized;
+                Turret.AimDirection = (CameraOrbit.MouseAimPosition - TurretGo.transform.position - PlayerVelocity).normalized;
             }
             else
             if (Turret.HasTarget)
             {
                 var Enemy = Turret.SpottedEnemy;
                 var ExtrapolatedPosition = Enemy.Position + Enemy.Velocity * (Time.time - Enemy.Time);
+                Vector3 TurretVelocity = Vector3.zero;
+                if (ShipUtility.TryGetShip(TurretGo.transform, out Ship Ship))
+                {
+                    TurretVelocity = Ship.GetComponent<Rigidbody>().velocity;
+                }
                 // Set Turret.AimDirection:
-                CalculateLeadShot(TurretGo.position, ExtrapolatedPosition, Enemy.Velocity, BulletSpeed, out Turret.AimDirection);
+                CalculateLeadShot(TurretGo.transform.position, ExtrapolatedPosition - TurretVelocity, Enemy.Velocity, TurretModels[(int)Turret.Type].BulletSpeed, out Turret.AimDirection);
             }
 
             if (Turret.HasTarget)
@@ -151,8 +179,8 @@ public class TurretSystem : MonoBehaviour
                 {
                     // We basically just need the direction for now
                     // Let's get the angle difference for the turret
-                    Quaternion TargetRot = Quaternion.LookRotation(Turret.AimDirection, TurretGo.up);
-                    TargetRot = Quaternion.Inverse(TurretGo.parent.rotation) * TargetRot;
+                    Quaternion TargetRot = Quaternion.LookRotation(Turret.AimDirection, TurretGo.transform.up);
+                    TargetRot = Quaternion.Inverse(TurretGo.transform.parent.rotation) * TargetRot;
                     float TargetAngle = TargetRot.eulerAngles.y;
                     Turret.Yaw = TargetAngle;
 
@@ -162,13 +190,13 @@ public class TurretSystem : MonoBehaviour
                         Turret.Yaw = NewYaw;
                         Turret.YawVelocity = 0; // Reset velocity.
                     }
-                    TurretGo.localEulerAngles = new Vector3(0, Turret.Yaw, 0);
+                    TurretGo.transform.localEulerAngles = new Vector3(0, Turret.Yaw, 0);
                 }
 
                 // Barrel
                 {
                     Quaternion TargetRot = Quaternion.LookRotation(Turret.AimDirection, Barrel.right);
-                    TargetRot = Quaternion.Inverse(TurretGo.parent.rotation) * TargetRot;
+                    TargetRot = Quaternion.Inverse(TurretGo.transform.parent.rotation) * TargetRot;
                     float TargetAngle = TargetRot.eulerAngles.x;
                     Turret.Pitch = TargetAngle;
 
@@ -183,6 +211,18 @@ public class TurretSystem : MonoBehaviour
                 }
             }
             else nNoTargets++;
+
+            // Find out if the view is blocked
+            if (IsPlayer)
+            {
+                if (Physics.Raycast(TurretGo.transform.position, TurretGo.transform.forward, out RaycastHit Hit, TurretBlockRange))
+                {
+                    if (Hit.collider.GetComponent<Team>() == null)
+                    {
+                        BillboardRenderer.Instance.AddSprite(Hit.point + Hit.normal * 0.5f, BillboardRenderer.SpriteId.WhiteX);
+                    }
+                }
+            }
 
             //Vector3 LocalTargetDir = Turret.InverseTransformDirection(TargetDir);
             /*Vector3 LocalTargetDir = Turret.worldToLocalMatrix.MultiplyVector(TargetDir);
@@ -210,15 +250,19 @@ public class TurretSystem : MonoBehaviour
 
             // Add new turret
             NewTurretData[nNewTurrets] = TurretData[i];
-            NewTurrets[nNewTurrets] = Turrets[i];
+            NewTurretGos[nNewTurrets] = TurretGos[i];
             nNewTurrets++;
         }
 
-        var TempTurrets = TurretData;
+        var TempTurretData = TurretData;
+        var TempTurretGos = TurretGos;
         TurretData = NewTurretData;
+        TurretGos = NewTurretGos;
         nTurrets = nNewTurrets;
         // Dispose old.
-        TempTurrets.Dispose();
+        TempTurretData.Dispose();
+
+        if (nTurrets < nNewTurrets) Debug.LogFormat("Destroyed {0} turrets", nTurrets - nNewTurrets);
 
         //if (nNoTargets > 0) Debug.Log("Turrets with no target: " + nNoTargets);
 
@@ -239,15 +283,22 @@ public class TurretSystem : MonoBehaviour
 
     bool DoTurretSpotting(int idx, float dt)
     {
-        var go = Turrets[idx];
+        var TurretGo = TurretGos[idx];
         var Turret = TurretData[idx];
         Turret.HasTarget = false;
         var SpottingRange = 1000.0f;
         var Colliders = new Collider[5]; // Can be cached.
+        bool IsNPC = false; // ShipUtility.TryGetShip(TurretGo.transform, out Ship ParentShip) && ParentShip.name != "0";
+
+        if(TurretGo == null)
+        {
+            Debug.LogFormat("Turret {0} was null", idx);
+            return false;
+        }
 
         // Do a sphere cast
         // Spot enemies.
-        int nSpotted = Physics.OverlapSphereNonAlloc(go.transform.position, SpottingRange, Colliders, Layer);
+        int nSpotted = Physics.OverlapSphereNonAlloc(TurretGo.transform.position, SpottingRange, Colliders, Layer);
         if (nSpotted > 0)
         {
             //Debug.LogFormat("Spotted {0} ships", nSpotted);
@@ -264,8 +315,8 @@ public class TurretSystem : MonoBehaviour
                         // For now just target the first ship found.
 
                         // Check to see if we can actually see the ship
-                        Vector3 Direction = (SpottedShip.transform.position - go.transform.position).normalized;
-                        var Ray = new Ray(go.transform.position + Direction * 1.7f, Direction);
+                        Vector3 Direction = (SpottedShip.transform.position - TurretGo.transform.position).normalized;
+                        var Ray = new Ray(TurretGo.transform.position + Direction * 1.7f, Direction);
                         LineStart = Ray.origin;
                         LineEnd = SpottedShip.transform.position;
                         if (Physics.Raycast(Ray, out RaycastHit hit))
@@ -275,11 +326,11 @@ public class TurretSystem : MonoBehaviour
                             if (HitTeam == null || HitTeam.value == Turret.Team)
                             {
                                 // The collider that was hit wasn't the enemy, therefore something was blocking it.
-                                //.Log("Raycast towards enemy didn't hit enemy (No line of sight). Instead it hit: " + hit.collider.name, hit.collider);
+                                if (IsNPC) Debug.Log("Raycast towards enemy didn't hit enemy (No line of sight). Instead it hit: " + hit.collider.name, hit.collider);
                             }
                             else
                             {
-                                //Debug.Log("Target acquired: " + SpottedShip.name, SpottedShip);
+                                if (IsNPC) Debug.Log("Target acquired: " + SpottedShip.name, SpottedShip);
                                 // We have a clear line of sight to the enemy.
                                 var Spotting = new SpottedEnemy()
                                 {
@@ -294,14 +345,14 @@ public class TurretSystem : MonoBehaviour
                                 break;
                             }
                         }
-                        //else Debug.LogError("Raycast towards enemy didn't hit anything.");
+                        else if(IsNPC) Debug.LogError("Raycast towards enemy didn't hit anything.");
                     }
-                    //else Debug.Log("Ship was on team: " + Team.value);
+                    else if(IsNPC) Debug.Log("Ship was on team: " + Team.value, TurretGo);
                 }
-                //else Debug.Log("Spotted enemy has no team component");
+                else if(IsNPC) Debug.Log("Spotted enemy has no team component");
             }
         }
-        else Debug.Log("All ships were out of range.");
+        else if(IsNPC) Debug.Log("All ships were out of range.");
 
         TurretData[idx] = Turret; // Set back
         return Turret.HasTarget;
@@ -353,48 +404,50 @@ public class TurretSystem : MonoBehaviour
 
     private void Update()
     {
-        float dt = Time.deltaTime;
-
+        float dt = Time.deltaTime;    
         for (int i = 0; i < nTurrets; i++)
         {
             var Turret = TurretData[i];
-            if (ShipUtility.TryGetShip(Turrets[i].transform, out Ship Ship))
+            if (TurretGos[i] != null && ShipUtility.TryGetShip(TurretGos[i].transform, out Ship ParentShip))
             {
-                if (int.TryParse(Ship.name, out int idx))
+                if (int.TryParse(ParentShip.name, out int idx))
                 {
                     // If its the player's turrets, don't fire until the player wants them to.
-                    if (idx == 0 && !Input.GetMouseButton(0)) continue;
+                    if (Turret.IsPlayer && !Input.GetMouseButton(0)) continue;
 
                     // If we can fire
                     if (Turret.HasTarget && Turret.ReloadTimeRemaining == 0)
                     {
-                        var Barrel = Turrets[i].transform.GetChild(0);
+                        var Barrel = TurretGos[i].transform.GetChild(0);
 
                         // Determine if we're close enough to actually shoot and have a chance of hitting the target.
                         if (Vector3.Dot(Turret.AimDirection, Barrel.forward) >= 1.0f - AngleDotTolerance)
                         {
-                            Vector3 Velocity = Barrel.forward * BulletSpeed;
+                            TurretType type = Turret.Type;
+
+                            Vector3 Velocity = Barrel.forward * TurretModels[(int)type].BulletSpeed;
 
                             // Add ship's velocity.
                             Velocity += ShipSystem.Instance.Ships[idx].GetComponent<Rigidbody>().velocity;
 
-                            if (BulletSystem.TryAddBullet(Barrel.position + Barrel.forward * 2.0f, Velocity))
+                            if (BulletSystem.TryAddBullet(Barrel.position + Barrel.forward * 0.5f, Velocity, (BulletSystem.TracerType)type, Turret.IsPlayer))
                             {
                                 // Create Muzzle Flash (Set parent to parent of turret so that it doesn't inherit rotation, looks a little better but obviously not 100% accurate).
-                                var go = Instantiate(MuzzleFlashPrefab, Turrets[i].transform.parent);
+                                //var go = Instantiate(MuzzleFlashPrefab, Turrets[i].transform.parent);
                                 // Sfx
-                                Turrets[i].GetComponent<AudioSource>().PlayOneShot(TurretShotClips[Random.Range(0, TurretShotClips.Length - 1)]);
-                                Turrets[i].GetComponent<AudioSource>().pitch = Random.Range(0.8f, 1.1f);
+                                TurretGos[i].GetComponent<AudioSource>().PlayOneShot(TurretModels[(int)type].Clip); //TurretShotClips[Random.Range(0, TurretShotClips.Length - 1)]);
+                                TurretGos[i].GetComponent<AudioSource>().pitch = Random.Range(0.8f, 1.1f);
                             }
+
                             // Add some randomness to simulate not all machinery/soldiers working at the same exact speed.
-                            Turret.ReloadTimeRemaining = ReloadSpeed * Random.Range(1.24f, 1.0f);
+                            Turret.ReloadTimeRemaining = TurretModels[(int)type].ReloadSpeed; //* Random.Range(1.1f, 1.0f);
                         }
                     }
                     TurretData[i] = Turret;
                 }
-                else Debug.LogErrorFormat("Couldn't parse ship's name: {0}", Ship.name);
+                //else Debug.LogErrorFormat("Couldn't parse ship's name: {0}", Ship.name);
             }
-            else Debug.LogError("Couldn't get ship");
+            //else Debug.LogError("Couldn't get ship");
         }
 
         // Reload

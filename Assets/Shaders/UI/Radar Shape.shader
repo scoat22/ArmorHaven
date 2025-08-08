@@ -2,6 +2,7 @@ Shader "Custom/Radar Shape"
 {
     Properties
     {
+        _MainTex ("Texture", 2D) = "white" {}
         _Color("Color", Color) = (1,1,1,1)
     }
     SubShader
@@ -33,6 +34,8 @@ Shader "Custom/Radar Shape"
                 float4 color : COLOR;
             };
 
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
             float4 _Color;
 
             v2f vert (appdata v)
@@ -46,13 +49,14 @@ Shader "Custom/Radar Shape"
 
             fixed4 frag (v2f i) : SV_Target
             {
-                float4 col = 1;
+                fixed4 Sample = tex2D(_MainTex, i.uv);
                 float Distance = length(i.uv);
-                // Apply to gamma
-                Distance = pow(Distance, 1.0 / 2.2);
-                col.a = saturate(1.0 - Distance);
+                // Apply gamma.
+                Distance = pow(Distance, 1.0 / 7.0);
+                float Alpha = saturate(1.0 - Distance);
+                Alpha *= Sample.r * 0.5 + 0.5;
 
-                return col * _Color * i.color;
+                return fixed4(_Color.rgb, Alpha);
             }
             ENDCG
         }

@@ -19,8 +19,9 @@ namespace TDLN.CameraControllers
         public float yMinLimit = -20;
         public float yMaxLimit = 80;
         public float _ScrollSpeed = 50;
-        float x = 0.0f;
-        float y = 0.0f;
+        Vector3 Angles;
+
+        public Vector3 CameraOffset;
 
         Vector3 Position;
         public static Vector3 MouseAimPosition;
@@ -28,9 +29,7 @@ namespace TDLN.CameraControllers
 
         void Start()
         {
-            var angles = transform.eulerAngles;
-            x = angles.y;
-            y = angles.x;
+            Angles = transform.eulerAngles;
         }
 
         float prevDistance;
@@ -51,8 +50,8 @@ namespace TDLN.CameraControllers
 
             if (Input.GetMouseButton(1)) // || Input.GetMouseButton(0))
             {
-                x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
-                y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+                Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
+                Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
 
                 var pos = Input.mousePosition;
                 var dpiScale = 1f;
@@ -66,7 +65,7 @@ namespace TDLN.CameraControllers
                 Cursor.visible = false;
                 Cursor.lockState = CursorLockMode.Locked;
 
-                y = ClampAngle(y, yMinLimit, yMaxLimit);  
+                Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);  
             }
             else
             {
@@ -75,32 +74,34 @@ namespace TDLN.CameraControllers
                 Cursor.lockState = CursorLockMode.None;
             }
 
-            var rotation = Quaternion.Euler(y, x, 0);
+            var rotation = Quaternion.Euler(Angles.y, Angles.x, 0);
             var position = rotation * new Vector3(0.0f, 0.0f, -distance) + Position;
             transform.rotation = rotation;
-            transform.position = position;
+            transform.position = position + transform.right * CameraOffset.x + transform.up * CameraOffset.y;
 
-            if (Math.Abs(prevDistance - distance) > 0.001f)
+            /*if (Math.Abs(prevDistance - distance) > 0.001f)
             {
                 prevDistance = distance;
-                var rot = Quaternion.Euler(y, x, 0);
+                var rot = Quaternion.Euler(Angles.y, Angles.x, 0);
                 var po = rot * new Vector3(0.0f, 0.0f, -distance) + Position;
                 transform.rotation = rot;
                 transform.position = po;
-            }
+            }*/
 
             var MouseRay = Camera.main.ScreenPointToRay(Input.mousePosition);
             const float Dist = 10000f;
-            if (Physics.Raycast(MouseRay.origin, MouseRay.direction, out var hit, Dist))
+            if(Physics.Raycast(MouseRay, out RaycastHit hit))
             {
-                MouseAimPosition = hit.point;
+                MouseAimPosition = hit.point + hit.normal * 0.5f;
             }
-            else
-            {
-                MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
-            }
+            else MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
 
             //transform.rotation = Quaternion.LookRotation((MouseAimPosition - transform.position).normalized, Vector3.up);
+        }
+
+        private void FixedUpdate()
+        {
+            BillboardRenderer.Instance.AddSprite(MouseAimPosition);
         }
 
         static float ClampAngle(float angle, float min, float max)

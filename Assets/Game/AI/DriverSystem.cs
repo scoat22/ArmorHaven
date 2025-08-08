@@ -4,8 +4,8 @@ using UnityEngine;
 
 public class DriverSystem : MonoBehaviour
 {
-    public float PassiveDistance = 300.0f;
-    public float AggressiveDistance = 300.0f;
+    float PassiveDistance = 300.0f;
+    float AggressiveDistance = 20.0f;
 
     // Start is called before the first frame update
     void Start()
@@ -18,14 +18,26 @@ public class DriverSystem : MonoBehaviour
     {
         var ShipSystem = global::ShipSystem.Instance;
         var TeamSystem = Teams.Instance;
+        Vector3 PlayerPosition = Vector3.zero;
+        if (ShipSystem.nShips > 0) PlayerPosition = ShipSystem.Ships[0].transform.position;
 
         // I'd like a few ships to be aggressive. 
         // So we'll have one passive tick, and one aggressive tick function.
         // If you want this to affect the player, have i start at 0, not 1.
-        for (int i = 1; i < ShipSystem.nShips; i++)
+
+        // Make one ship aggressive
+        int nEnemies = ShipUtility.EnemyCount();
+        for (int i = 1 + nEnemies / 2; i < ShipSystem.nShips; i++)
         {
             var Ship = ShipSystem.Ships[i];
-            Passive(Ship.GetComponent<Ship>());
+            //if(Ship.GetComponent<Team>().team == team.Enemies)
+            Orbit(Ship.GetComponent<Ship>(), PlayerPosition, AggressiveDistance);
+        }
+        // The rest are passive
+        for (int i = 2; i < ShipSystem.nShips; i++)
+        {
+            var Ship = ShipSystem.Ships[i];
+            Orbit(Ship.GetComponent<Ship>(), PlayerPosition, PassiveDistance);
         }
     }
 

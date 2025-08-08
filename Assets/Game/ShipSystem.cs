@@ -65,10 +65,21 @@ public class ShipSystem : MonoBehaviour
             for (int i = 0; i < nShips; i++)
                 if (Ships[i].GetComponent<Team>().value == team.Enemies)
                     Ships[i].GetComponent<Ship>().Health = 0;
+
+        if (Input.GetKeyDown(KeyCode.Alpha3))
+            if(nShips > 1)
+                Ships[1].GetComponent<Ship>().Health = 0;
     }
 
     void Explode(GameObject Ship)
     {
+        // Disable all thrusters
+        foreach (var thruster in Ship.GetComponentsInChildren<Thruster>())
+            Destroy(thruster);
+        // Disable all turrets
+        foreach (var turret in Ship.GetComponentsInChildren<TurretComponent>())
+            turret.Skip = true;
+
         // Explode
         Vector3 ExplositonPosition = Ship.transform.position + Vector3.left;
         float ExplositonRadius = 150.0f;
@@ -79,18 +90,14 @@ public class ShipSystem : MonoBehaviour
         float SubMass = ShipRb.mass / (float)armors.Length;
         foreach (var armor in armors)
         {
+            // Unparent
+            armor.transform.SetParent(null, worldPositionStays: true);
+            armor.gameObject.AddComponent<DestroyTimer>().Seconds = 5.0f;
             var rb = armor.gameObject.TryAddComponent<Rigidbody>();
             rb.mass = SubMass;
             rb.useGravity = false;
             rb.AddExplosionForce(ExplosionPower, ExplositonPosition, ExplositonRadius, 0.0f, ForceMode.Impulse);
         }
-
-        // Disable all thrusters
-        foreach (var thruster in Ship.GetComponentsInChildren<Thruster>())
-            Destroy(thruster);
-        // Disable all turrets
-        foreach (var turret in Ship.GetComponentsInChildren<Turret>())
-            turret.Destroy = true;
 
         // Vfx
         var Explosion = Instantiate(ExplosionPrefab, Ship.transform);
@@ -114,7 +121,10 @@ public class ShipSystem : MonoBehaviour
 
                 if(Ship.Health == 0)
                 {
-                    Explode(ShipGo);
+                    // It's not a threat to anyone anymore, so switch to team Neutral.
+                    Ship.GetComponent<Team>().value = team.Neutral;
+                    Explode(ShipGo); // For now just have it explode when it dies cuz its satisfying. 
+                    //Destroy(Ship); // Remove ship component.
                 }
 
                 if (Ship.Health > 0)

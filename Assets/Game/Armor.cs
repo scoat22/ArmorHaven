@@ -12,7 +12,7 @@ public class Armor : MonoBehaviour
     private void OnValidate()
     {
         // Calculate weight
-        Weight = GetWeight();
+        //Weight = GetWeight();
     }
 
     float GetWeight()

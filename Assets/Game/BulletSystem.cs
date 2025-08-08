@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using TDLN.CameraControllers;
 using Unity.Collections;
 using UnityEditor;
@@ -13,46 +14,70 @@ public class BulletSystem : MonoBehaviour
     public GameObject ImpactPrefab;
     public GameObject SparksPrefab;
 
+    [SerializeField] int _MaxBullets;
     public static int MaxBullets = 150;
     static int nBullets;
     static NativeArray<Vector3> Positions;  // Position per bullet
     static NativeArray<Vector3> Velocities; // Velocity per bullet
+    static NativeArray<BulletInfo> BulletData; // Basically denotes size and color.
 
     public AudioClip[] CannonClips;
     public AudioClip HitNoise;
     AudioSource _AudioSource; // Cache AudioSource.
 
-    Mesh _Mesh; // lines mesh
+    Mesh _Mesh; // lines mesh (rendering all bullets)
+    public float BulletDamage = 0.5f;
+    public bool SpawnVfxParticles = true;
 
     [Header("Ricochet")]
-    public AudioClip RicochetNoise;
+    public AudioClip[] RicochetNoises;
     public float RicochetDotAngleTolerance = -0.85f;
     public float RicochetEnergyLoss = 0.5f;
     public Transform BoundingBox;
+
+    public List<TracerTypeInfo> TracerTypes = new List<TracerTypeInfo>();
+    [System.Serializable, StructLayout(LayoutKind.Sequential)]
+    public struct TracerTypeInfo
+    {
+        public Color Color;
+        public float Size;
+    }
+
+    public enum TracerType
+    {
+        Turret,
+        MachineGun,
+    }
+
+    public struct BulletInfo
+    {
+        public int AmmoType;
+        public bool IsPlayer; // Did the player fire this bullet?
+    }
 
     // Start is called before the first frame update
     void Awake()
     {
         Instance = this;
+        MaxBullets = _MaxBullets;
         _AudioSource = GetComponent<AudioSource>();
         Positions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         Velocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
-        _BulletMesh = MeshUtility.CreateBillboardQuad(1, 1);
+        BulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent);
         _Mesh = MeshUtility.CreateLinesMesh(MaxBullets);
-        _Material = CreateMaterial();
-        //CreateBulletPrefabs();
 
         GetComponent<MeshFilter>().mesh = _Mesh;
+        var buffer = new ComputeBuffer(TracerTypes.Count, sizeof(float) * 5);
+        buffer.SetData(TracerTypes);
+        GetComponent<MeshRenderer>().material.SetBuffer("TracerTypes", buffer);
+        //AmmoTypesBuffer.Dispose();
     }
 
     void OnDestroy()
     {
-        ArgsBuffer?.Dispose();
-        ArgsBuffer = null;
-        PositionsBuffer?.Dispose();
-        PositionsBuffer = null;
         Positions.Dispose();
         Velocities.Dispose();
+        BulletData.Dispose();
     }
 
     private void FixedUpdate()
@@ -61,26 +86,29 @@ public class BulletSystem : MonoBehaviour
         int nNewBullets = 0;
         var NewPositions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         var NewVelocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
+        var NewBulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent);
 
         for (int i = 0; i < nBullets; i++)
         {
             // If it hits a ship, do damage. (Audio-Visual reward)
-            if (Physics.Raycast(Positions[i], Velocities[i], out RaycastHit hit, Velocities[i].magnitude * dt))
+            // Multiply raycast length by two to avoid going through walls (kinda janky).
+            if (Physics.Raycast(Positions[i], Velocities[i], out RaycastHit hit, Velocities[i].magnitude * dt * 2.0f))
             {
                 if (Vector3.Dot(Velocities[i].normalized, hit.normal) < RicochetDotAngleTolerance)
                 {
                     OnBulletHit(i, hit);
-                    Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx / Sfx (Audio is attached to prefab).
+                    if(SpawnVfxParticles) Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx / Sfx (Audio is attached to prefab).
                     continue;
                 }
                 else
                 {
+                    Vector3 original = Velocities[i];
                     // Ricochet.
                     Velocities[i] = Vector3.Reflect(Velocities[i], hit.normal) * RicochetEnergyLoss;
 
-                    //_AudioSource.PlayOneShot(RicochetNoise); // Sfx
+                    _AudioSource.PlayOneShot(RicochetNoises[Random.Range(0, RicochetNoises.Length - 1)]); // Sfx
                     //Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal)); // Vfx
-                    Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(Velocities[i]));
+                    if (SpawnVfxParticles) Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal));
                 }
             }
             // Make a sound
@@ -105,18 +133,22 @@ public class BulletSystem : MonoBehaviour
             // Copy the old bullet to the new array.
             NewPositions[nNewBullets] = Positions[i];
             NewVelocities[nNewBullets] = Velocities[i];
+            NewBulletData[nNewBullets] = BulletData[i];
             nNewBullets++;
         }
 
         // Swap pointer.
         var TempPositions = Positions;
         var TempVelocities = Velocities;
+        var TempBulletData = BulletData;
         Positions = NewPositions;
         Velocities = NewVelocities;
+        BulletData = NewBulletData;
         nBullets = nNewBullets;
         // Dispose old
         TempPositions.Dispose();
         TempVelocities.Dispose();
+        TempBulletData.Dispose();
     }
 
     void OnBulletHit(int idx, RaycastHit hit)
@@ -125,8 +157,16 @@ public class BulletSystem : MonoBehaviour
         {
             // For now hard code damage value.
             if (Ship.Health > 0)
-                Ship.Health = Mathf.Max(0, Ship.Health - 0.5f);
+                Ship.Health = Mathf.Max(0, Ship.Health - BulletDamage);
             //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
+            if (BulletData[idx].IsPlayer)
+            {
+                int Points = 10;
+                // If it was a killing blow, add more points;
+                if (Ship.Health == 0) Points = 120;
+
+                PlayerController.Instance.AddPoints(Points);
+            }
         }
     }
 
@@ -140,36 +180,60 @@ public class BulletSystem : MonoBehaviour
     void Update()
     {
         float dt = Time.deltaTime;
-        Vector3 CameraVelocity = CameraOrbit.Velocity;
-        var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
-
-        for (int i = 0; i < nBullets; i++)
+        if (Time.timeScale > 0)
         {
-            Positions[i] += Velocities[i] * dt;
+            Vector3 CameraVelocity = CameraOrbit.Velocity;
+            var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
+
+            for (int i = 0; i < nBullets; i++)
+            {
+                Positions[i] += Velocities[i] * dt;
+            }
+
+            var VertexPositions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp);
+            var Types = new NativeArray<float>(MaxBullets * 2, Allocator.Temp);
+            for (int i = 0; i < nBullets; i++)
+            {
+                VertexPositions[i * 2] = Positions[i];
+                VertexPositions[i * 2 + 1] = Positions[i] + (Velocities[i] - CameraVelocity) * dt;
+                Types[i * 2] = BulletData[i].AmmoType;
+                Types[i * 2 + 1] = BulletData[i].AmmoType;
+            }
+            for (int i = nBullets * 2; i < MaxBullets * 2; i++)
+            {
+                VertexPositions[i] = Vector4.zero;
+            }
+
+            var descriptors = new VertexAttributeDescriptor[2];
+            descriptors[0] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.Position,
+                format = VertexAttributeFormat.Float32,
+                dimension = 3,
+                stream = 0,
+
+            };
+            descriptors[1] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.TexCoord0,
+                format = VertexAttributeFormat.Float32,
+                dimension = 1,
+                stream = 1,
+            };
+            _Mesh.SetVertexBufferParams(VertexPositions.Length, descriptors);
+            _Mesh.SetVertexBufferData(VertexPositions, 0, 0, VertexPositions.Length, stream: 0, Flags);
+            _Mesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 1, Flags);
+
+            // Render all the bullets at their current position
+            //Render();
+            //RenderGameObjects(dt);
+
+            // Test
+            //float Range = SmokeRes;
+            //AddSmoke(new Vector3(Random.Range(0, Range), Random.Range(0, Range), Random.Range(0, Range)), 1.0f);
+            //RaymarchGeneric.AddSmoke(new Vector3(0, y, 0), 1.0f);
+            //y += Time.deltaTime;
         }
-
-        var VertexPositions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp);
-        for (int i = 0; i < nBullets; i++)
-        {
-            VertexPositions[i * 2] = Positions[i];
-            VertexPositions[i * 2 + 1] = Positions[i] + (Velocities[i] - CameraVelocity) * dt;
-        }
-        for (int i = nBullets * 2; i < MaxBullets * 2; i++)
-        {
-            VertexPositions[i] = Vector3.zero;
-        }
-
-        _Mesh.SetVertices(VertexPositions, 0, VertexPositions.Length, Flags);
-
-        // Render all the bullets at their current position
-        //Render();
-        //RenderGameObjects(dt);
-
-        // Test
-        //float Range = SmokeRes;
-        //AddSmoke(new Vector3(Random.Range(0, Range), Random.Range(0, Range), Random.Range(0, Range)), 1.0f);
-        //RaymarchGeneric.AddSmoke(new Vector3(0, y, 0), 1.0f);
-        //y += Time.deltaTime;
     }
 
     bool OutOfRange(Vector3 Position)
@@ -178,12 +242,14 @@ public class BulletSystem : MonoBehaviour
         return Mathf.Abs(Position.x) > Scale.x || Mathf.Abs(Position.y) > Scale.y || Mathf.Abs(Position.z) > Scale.z;
     }
 
-    public static bool TryAddBullet(Vector3 Position, Vector3 Velocity)
+    // Type: Basically only changes the look of the projectile.
+    public static bool TryAddBullet(Vector3 Position, Vector3 Velocity, TracerType Type = TracerType.Turret, bool IsPlayer = false)
     {
         if (nBullets < MaxBullets)
         {
             Positions[nBullets] = Position;
             Velocities[nBullets] = Velocity;
+            BulletData[nBullets] = new BulletInfo() { AmmoType = (int)Type, IsPlayer = IsPlayer };
             nBullets++;
 
             // Play audio
@@ -196,102 +262,9 @@ public class BulletSystem : MonoBehaviour
         else Debug.LogWarningFormat("MaxBullets {0} reached.", MaxBullets);
         return false;
     }
-    
-    [SerializeField] Texture2D _VertexTexture;
-    [SerializeField] float _BulletSize = 0.02f;
-    [SerializeField] Color _Color = Color.yellow;
-    [SerializeField] GameObject _BulletPrefab;
-    static GameObject[] _Bullets;
-    static Bounds Bounds = new Bounds(Vector3.zero, new Vector3(100, 100, 100));
-    static Material _Material;
-    static Mesh _BulletMesh;
-    static ComputeBuffer ArgsBuffer;
-    static ComputeBuffer PositionsBuffer;
 
-    Material CreateMaterial()
+    public void Clear()
     {
-        var material = new Material(Shader.Find("Custom/Billboard"));
-        material.SetTexture("_MainTex", _VertexTexture);
-        material.SetFloat("_Scale", _BulletSize);
-        material.SetVector("_Color", _Color);
-        return material;
+        nBullets = 0;
     }
-
-    void CreateBulletPrefabs()
-    {
-        _Bullets = new GameObject[MaxBullets];
-        for (int i = 0; i < MaxBullets; i++)
-        {
-            var go = Instantiate(_BulletPrefab);
-            go.transform.localScale = Vector3.one * _BulletSize;
-            go.SetActive(false);
-            _Bullets[i] = go;
-        }
-    }
-
-    void RenderGameObjects(float dt)
-    {
-        // We actually need to add the camera's relative velocity for this line rendering "hack" to work.
-        //Vector3 CameraVelocity = ShipSystem.Instance.Velocities[0
-        Vector3 CameraVelocity = CameraOrbit.Velocity;
-
-        // Use the pool of game objects instead. 
-        for (int i = 0; i < nBullets; i++)
-        {
-            _Bullets[i].SetActive(true);
-            //_Bullets[i].transform.position = Positions[i]; // Old.
-
-            // Set the line renderer properties.
-            var lr = _Bullets[i].GetComponent<LineRenderer>();
-            // World-space positions.
-            lr.SetPosition(0, Positions[i]);
-            lr.SetPosition(1, Positions[i] + (Velocities[i] - CameraVelocity) * dt);
-
-            // Local positions.
-            /*lr.transform.position = Positions[i];
-            lr.SetPosition(0, Vector3.zero);
-            lr.SetPosition(1, (Velocities[i] - CameraVelocity) * dt);*/
-        }
-        // Disable the rest
-        for (int i = nBullets; i < MaxBullets; i++)
-        {
-            _Bullets[i].SetActive(false);
-        }
-    }
-
-    void Render()
-    {
-        if (Positions != null)
-        {
-            // Prevent error from Unity API
-            if (nBullets > 0)
-            {
-                // Argument buffer used by DrawMeshInstancedIndirect.
-                var args = new NativeArray<uint>(5, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-                args[0] = (uint)_BulletMesh.GetIndexCount(0);
-                args[1] = (uint)nBullets;
-                args[2] = (uint)_BulletMesh.GetIndexStart(0);
-                args[3] = (uint)_BulletMesh.GetBaseVertex(0);
-                args[4] = 0;
-
-                ArgsBuffer?.Dispose();
-                ArgsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
-                ArgsBuffer.SetData(args);
-
-
-                PositionsBuffer?.Dispose();
-                PositionsBuffer = new ComputeBuffer(nBullets, sizeof(float) * 3);
-                PositionsBuffer.SetData(Positions);
-
-                _Material.SetBuffer("_Positions", PositionsBuffer);
-                _Material.SetInt("_PositionStride", 3);
-
-                args.Dispose();
-
-                Graphics.DrawMeshInstancedIndirect(_BulletMesh, 0, _Material, Bounds, ArgsBuffer);
-                //buffer.DrawMeshInstancedIndirect(_Mesh, 0, _Material, 0, ArgsBuffer, 0);
-            }
-        }
-    }
-
 }

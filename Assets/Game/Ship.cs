@@ -36,6 +36,8 @@ public class Ship : MonoBehaviour
     // Runtime controls.
     public ShipControls Controls;
 
+    public bool IsPlayer;
+
     void Awake()
     {
         RocketPower = 100000.0f;
