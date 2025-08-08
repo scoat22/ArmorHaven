@@ -5,7 +5,9 @@ using UnityEngine;
 
 public enum Sound
 {
-    BulletFlying
+    MachineGun,
+    HeavyTurret,
+    Ricochet,
 }
 
 public class SoundSystem : MonoBehaviour
@@ -14,6 +16,7 @@ public class SoundSystem : MonoBehaviour
 
     public int MaxVoices = 32;
     AudioSource[] Voices;
+    public AudioClip[] Clips;
     public AudioListener Listener;
 
     // Start is called before the first frame update

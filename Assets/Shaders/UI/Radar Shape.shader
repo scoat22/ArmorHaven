@@ -52,11 +52,13 @@ Shader "Custom/Radar Shape"
                 fixed4 Sample = tex2D(_MainTex, i.uv);
                 float Distance = length(i.uv);
                 // Apply gamma.
-                Distance = pow(Distance, 1.0 / 7.0);
+                Distance = pow(Distance, 1.0 / 7.2);
                 float Alpha = saturate(1.0 - Distance);
                 Alpha *= Sample.r * 0.5 + 0.5;
 
-                return fixed4(_Color.rgb, Alpha);
+                fixed4 col = fixed4(_Color.rgb, Alpha);
+
+                return col * i.color;
             }
             ENDCG
         }
