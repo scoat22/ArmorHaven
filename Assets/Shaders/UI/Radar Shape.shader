@@ -42,7 +42,7 @@ Shader "Custom/Radar Shape"
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.uv = v.uv;
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.color = v.color;
                 return o;
             }
@@ -52,7 +52,7 @@ Shader "Custom/Radar Shape"
                 fixed4 Sample = tex2D(_MainTex, i.uv);
                 float Distance = length(i.uv);
                 // Apply gamma.
-                Distance = pow(Distance, 1.0 / 7.2);
+                Distance = pow(Distance, 1.0 / 8.2);
                 float Alpha = saturate(1.0 - Distance);
                 Alpha *= Sample.r * 0.5 + 0.5;
 

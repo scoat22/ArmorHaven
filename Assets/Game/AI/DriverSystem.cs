@@ -5,7 +5,7 @@ using UnityEngine;
 public class DriverSystem : MonoBehaviour
 {
     float PassiveDistance = 300.0f;
-    float AggressiveDistance = 20.0f;
+    float AggressiveDistance = 5.0f;
 
     // Start is called before the first frame update
     void Start()
@@ -19,36 +19,36 @@ public class DriverSystem : MonoBehaviour
         var ShipSystem = global::ShipSystem.Instance;
         var TeamSystem = Teams.Instance;
         Vector3 PlayerPosition = Vector3.zero;
-        if (ShipSystem.nShips > 0) PlayerPosition = ShipSystem.Ships[0].transform.position;
+        if (ShipSystem.nShips > 0)
+        {
+            PlayerPosition = ShipSystem.Ships[0].transform.position;
+        }
+        else Debug.LogError("Couldn't get player position");
 
         // I'd like a few ships to be aggressive. 
         // So we'll have one passive tick, and one aggressive tick function.
         // If you want this to affect the player, have i start at 0, not 1.
 
-        // Make one ship aggressive
+        // Make half aggressive
         int nEnemies = ShipUtility.EnemyCount();
-        for (int i = 1 + nEnemies / 2; i < ShipSystem.nShips; i++)
+        int nAggressive = 0;
+        int MaxAggressive = Mathf.CeilToInt(nEnemies / 2);
+        for (int i = 1; i < ShipSystem.nShips; i++)
         {
             var Ship = ShipSystem.Ships[i];
-            //if(Ship.GetComponent<Team>().team == team.Enemies)
-            Orbit(Ship.GetComponent<Ship>(), PlayerPosition, AggressiveDistance);
-        }
-        // The rest are passive
-        for (int i = 2; i < ShipSystem.nShips; i++)
-        {
-            var Ship = ShipSystem.Ships[i];
-            Orbit(Ship.GetComponent<Ship>(), PlayerPosition, PassiveDistance);
-        }
-    }
 
-    void Passive(Ship Ship)
-    {
-        Orbit(Ship, Vector3.zero, PassiveDistance);
-    }
-
-    void Aggressive(Ship Ship)
-    {
-        Orbit(Ship, Vector3.zero, AggressiveDistance);
+            if (Ship.GetComponent<Team>().team == team.Enemies)
+            {
+                if (nAggressive < MaxAggressive)
+                {
+                    Orbit(Ship.GetComponent<Ship>(), PlayerPosition, AggressiveDistance);
+                }
+                else
+                {
+                    Orbit(Ship.GetComponent<Ship>(), PlayerPosition, PassiveDistance);
+                }
+            }
+        }
     }
 
     void Orbit(Ship Ship, Vector3 TargetPos, float DesiredDistance)
@@ -63,7 +63,7 @@ public class DriverSystem : MonoBehaviour
         */
 
         ToTarget.y = 0;
-        Vector3 DesiredPosition = -ToTarget.normalized * DesiredDistance;
+        Vector3 DesiredPosition = TargetPos - ToTarget.normalized * DesiredDistance;// DesiredDistance;
         Vector3 ToOrbit = DesiredPosition - ShipPos; // This is nice to debug, shows a line to the orbit ring.
         Vector3 ToOrbitDir = ToOrbit.normalized;
 
@@ -74,8 +74,8 @@ public class DriverSystem : MonoBehaviour
         bool IsGoingRightWay = Vector3.Dot(rb.velocity.normalized, ToOrbitDir) > 0; 
         if (IsGoingRightWay && DistanceToOrbit < DistanceToStop(Ship)) ToOrbitDir *= -1; // Reverse thrusters.
 
+        Debug.DrawLine(ShipPos, DesiredPosition);
         Ship.Controls.DesiredDirection = ToOrbitDir * 10.0f; // Make longer so we can see it.
-        //Ship.Controls.ThrusterPower = 
     }
 
     public static float DistanceToStop(Ship Ship)

@@ -4,6 +4,7 @@ Shader "Custom/Tracer"
     {
         _Color ("Color", Color) = (1,1,1,1)
         _Size("Size", Float) = 200
+        _ObserverPosition("Observer Position", Vector) = (0,0,0,0)
     }
     SubShader
     {
@@ -25,19 +26,23 @@ Shader "Custom/Tracer"
 
             struct appdata
             {
-                float4 vertex : POSITION;
+                float4 position : POSITION;
+                float3 normal : NORMAL;
                 float type : TEXCOORD0;
             };
 
             struct v2f
             {
-                float4 vertex : SV_POSITION;
+                float4 position : SV_POSITION;
+                float3 normal : NORMAL;
                 float depth : TEXCOORD0;
                 float type : TEXCOORD1;
+                float3 WorldPos : TEXCOORD2;
             };
 
             float4 _Color;
             float _Size;
+            float3 _ObserverPosition;
 
             struct TracerType
             {
@@ -49,12 +54,14 @@ Shader "Custom/Tracer"
             v2f vert (appdata v)
             {
                 v2f o;
-                float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                float3 worldPos = mul(unity_ObjectToWorld, v.position).xyz;
                 float3 viewPos = mul(UNITY_MATRIX_V, float4(worldPos, 1.0)).xyz;
 
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.position = UnityObjectToClipPos(v.position);
+                o.normal = v.normal;
                 o.type = v.type; // Pack type into W component.
                 o.depth = -viewPos.z; // View space Z is negative in front of camera
+                o.WorldPos = worldPos;
                 //if(o.type == 1.0) o.vertex.y += _Size;
                 return o;
             }
@@ -69,25 +76,48 @@ Shader "Custom/Tracer"
                 int type = ceil(i.type);
                 float size = _Size;
                 float4 col = _Color;
+                float Brightness = 5.0;
                 switch(ceil(i.type))
                 {
                     case 0:
                         col = float4(1, 0.294, 0, 1);
-                        size = 600;
+                        size = 88;
+                        Brightness = 10;
                         break;
                     case 1:
                         //col = float4(0, 1, 0, 1);
                         col = float4(1, 0.694, 0.212, 1);
-                        size = 10;
+                        size = 20;
                         break;
                 }
                 /*TracerType TypeInfo = TracerTypes[type];
                 float size = TypeInfo.size;
                 float4 col = TypeInfo.color * 3.0;*/
-                float Alpha = saturate(size / i.depth);
-                col *= 3.0;
 
-                return float4(col.rgb, Alpha);
+                float magnitude = length(i.normal);
+                //_ObserverPosition = UNITY_MATRIX_IT_MV[2].xyz; // Camera forward.
+                float3 S = -normalize(i.WorldPos - _ObserverPosition);
+                float NdotS = dot(S, i.normal / magnitude); // Bullet to Ship.
+                float NdotV = dot( UNITY_MATRIX_IT_MV[2].xyz, i.normal / magnitude);
+                float RedShift = clamp(1 - (NdotS + 1) * 0.5, 0, 0.8);
+                col = lerp(col, float4(1, 0, 0, 1), RedShift);
+                
+                
+                //Brightness *= RedShift;
+
+                float Alpha = saturate(size / i.depth);
+                // Make more transparent the faster the bullet is going (linear relationship).
+                //Alpha *= 10.0 / magnitude;
+
+                //Alpha -= (1.0 - abs(NdotV)) * 0.5;
+
+                // Make bullets easier to see
+                Brightness += abs(NdotV) * 5.0;
+
+                // Brighten values
+                col *= Brightness;
+
+                return float4(col.rgb, saturate(Alpha));
             }
             ENDCG
         }

@@ -103,6 +103,8 @@ public class ShipSystem : MonoBehaviour
         var Explosion = Instantiate(ExplosionPrefab, Ship.transform);
         Explosion.transform.position = Ship.transform.position;
         Explosion.SetActive(true);
+        // Sfx
+        //SoundSystem.Instance.PlaySound(Sound.Explosion, Ship.transform.position, 30000.0f);
     }
 
     private void FixedUpdate()

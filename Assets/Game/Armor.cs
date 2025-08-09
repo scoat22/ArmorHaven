@@ -8,6 +8,7 @@ public class Armor : MonoBehaviour
     // In millimeters. 
     public float Thickness = 1.0f;
     public float Weight;
+    public float Health = 1.0f;
 
     private void OnValidate()
     {

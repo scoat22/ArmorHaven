@@ -4,6 +4,7 @@
 
 using System;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace TDLN.CameraControllers
 {
@@ -26,6 +27,7 @@ namespace TDLN.CameraControllers
         Vector3 Position;
         public static Vector3 MouseAimPosition;
         public static Vector3 Velocity;
+        public Image Reticle;
 
         void Start()
         {
@@ -64,15 +66,18 @@ namespace TDLN.CameraControllers
                 // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
                 Cursor.visible = false;
                 Cursor.lockState = CursorLockMode.Locked;
+                Reticle.gameObject.SetActive(false);
 
-                Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);  
+                Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
             }
             else
             {
                 // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
-                Cursor.visible = true;
+                //Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
+                Reticle.gameObject.SetActive(true);
             }
+            Cursor.visible = false;
 
             var rotation = Quaternion.Euler(Angles.y, Angles.x, 0);
             var position = rotation * new Vector3(0.0f, 0.0f, -distance) + Position;
@@ -88,20 +93,47 @@ namespace TDLN.CameraControllers
                 transform.position = po;
             }*/
 
-            var MouseRay = Camera.main.ScreenPointToRay(Input.mousePosition);
-            const float Dist = 10000f;
-            if(Physics.Raycast(MouseRay, out RaycastHit hit))
+            var Camera = UnityEngine.Camera.main;
+            var MouseRay = Camera.ScreenPointToRay(Input.mousePosition);
+            float Dist = Camera.farClipPlane;
+            MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
+            Vector3 ScreenPos = Input.mousePosition;
+            if (Physics.Raycast(MouseRay, out RaycastHit hit))
             {
                 MouseAimPosition = hit.point + hit.normal * 0.5f;
+                Dist = hit.distance;
             }
-            else MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
+            // Raycast a camera-facing plane against all enemy ships (if they're in front of the camera)
+            var Ships = ShipSystem.Instance.Ships;
+            var nShips = ShipSystem.Instance.nShips;
+            var PlayerShip = Ships[0];
+            float MaxDot = -1f;
+            for (int i = 1; i < nShips; i++)
+            {
+                if (Ships[i].GetComponent<Team>().team == team.Enemies)
+                {
+                    //var plane = new Plane(-transform.forward, Ships[i].transform.position);
+                    var plane = new Plane(PlayerShip.transform.position - Ships[i].transform.position, Ships[i].transform.position);
+                    if (plane.Raycast(MouseRay, out float HitDistance))
+                    {
+                        //float Dot = Vector3.Dot(MouseRay.direction, (Ships[i].transform.position - MouseRay.origin).normalized);
+                        if (Dist > HitDistance)// && MaxDot < Dot)
+                        {
+                            Dist = HitDistance;
+                            //MaxDot = Dot;
+                            MouseAimPosition = MouseRay.origin + MouseRay.direction * HitDistance;
+                        }
+                    }
+                }
+            }
+            if (Dist < Camera.farClipPlane) ScreenPos = Camera.WorldToScreenPoint(MouseAimPosition);
+            ScreenPos.z = 0;
+            Reticle.transform.position = ScreenPos;
+            const float MaxDistance = 800.0f;
+            float MaxWidth = 30.0f;
+            Reticle.GetComponent<RectTransform>().sizeDelta = Vector2.one * MaxWidth * Mathf.Clamp(1.0f - Dist / MaxDistance * 0.5f, 0.5f, 1.0f);
 
             //transform.rotation = Quaternion.LookRotation((MouseAimPosition - transform.position).normalized, Vector3.up);
-        }
-
-        private void FixedUpdate()
-        {
-            BillboardRenderer.Instance.AddSprite(MouseAimPosition);
         }
 
         static float ClampAngle(float angle, float min, float max)

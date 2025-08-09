@@ -10,9 +10,11 @@ public class TurretPrefab : MonoBehaviour
     {
         var Ship = GetShip(gameObject).GetComponent<Ship>();
         // Same team as ship.
-        var nTypes = typeof(TurretSystem.TurretType).GetEnumNames().Length;
-        var RandomType = (TurretType)(int)(Random.value * nTypes); // For now make each turret a random type.
-        TurretSystem.Instance.AddTurret(transform.parent, transform.position, transform.rotation, RandomType, Ship.GetComponent<Team>().value, Ship.IsPlayer);
+        //var nTypes = typeof(TurretSystem.TurretType).GetEnumNames().Length;
+        const int nTypes = 2;
+        var Type = (TurretType)(int)(Random.value * nTypes); // For now make each turret a random type.
+        //var Type = TurretType.LightTurret;
+        TurretSystem.Instance.AddTurret(transform.parent, transform.position, transform.rotation, Type, Ship.GetComponent<Team>().value, Ship.IsPlayer);
         Destroy(gameObject);
     }
 

@@ -21,8 +21,8 @@ public class RoundSystem : MonoBehaviour
     public RectTransform IncomingWaveIndicator;
     [Header("Sfx")]
     public AudioClip RoundOverClip;
-    RoundState State;
-    enum RoundState { Playing, NewRound, SpawningWave, Restarting, }
+    public RoundState State;
+    public enum RoundState { Playing, NewRound, SpawningWave, Restarting, }
 
     Vector3 WavePosition;
 
@@ -120,16 +120,18 @@ public class RoundSystem : MonoBehaviour
             State = RoundState.SpawningWave;
             yield return new WaitForSeconds(3.0f);
 
-            GetComponent<AudioSource>().PlayOneShot(RoundOverClip);
+            //GetComponent<AudioSource>().PlayOneShot(RoundOverClip);
             SpawnWave(WavePosition, nEnemies, team.Enemies);
 
+            // Wait for a second so that we don't have two waves spawning (glitch).
+            yield return new WaitForSeconds(1.0f);
             State = RoundState.Playing;
         }
     }
 
     public void SpawnWave(Vector3 WavePosition, int nEnemies, team Team)
     {
-        //Debug.LogFormat("Spawning {0} enemies.", nEnemies);
+        Debug.LogFormat("Spawning {0} enemies.", nEnemies);
 
         if (nEnemies <= 0)
         {
