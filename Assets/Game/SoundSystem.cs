@@ -98,8 +98,10 @@ public class SoundSystem : MonoBehaviour
 
     // Test
     float SustainEndTime;
-    public void PlaySustained(float ClipTime)
+    float SustainMaxVolume;
+    public void PlaySustained(float ClipTime, Vector3 Position)
     {
+        SustainMaxVolume = Mathf.Max(SustainMaxVolume, 1.0f / Vector3.Distance(ListenerPosition, Position));
         SustainEndTime = Mathf.Max(SustainEndTime, Time.time + ClipTime);
     }
 
@@ -110,7 +112,11 @@ public class SoundSystem : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Sustain test
-        SustainSource.volume = SustainEndTime - Time.time;
+        float TimeLeft = SustainEndTime - Time.time;
+        SustainSource.volume = TimeLeft * SustainMaxVolume;
+        SustainMaxVolume -= TimeLeft * dt; // Slowly decrease max volume.
+
+        ListenerPosition = Listener.transform.position; // Cache.
 
         if (MaxVoices > 0)
         {
@@ -176,8 +182,6 @@ public class SoundSystem : MonoBehaviour
             {
                 VisibleVoices[i] = Voices[i];
             }
-
-            ListenerPosition = Listener.transform.position;
 
             if (UseTestHotkeys)
             {

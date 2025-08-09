@@ -14,6 +14,7 @@ public class PlayerController : MonoBehaviour
     private Vector3 Velocity;
     public float PlayerSpeedMultiplier = 2.0f;
     public int _Points = 0;
+    public float ThrusterPower;
 
     public float Pitch = 1.0f;
     public AudioSource Engine;
@@ -56,6 +57,8 @@ public class PlayerController : MonoBehaviour
             Ship.GetComponent<Ship>().Controls.DesiredDirection = DesiredDirection;
             if (Input.GetKey(KeyCode.Q)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, camera.transform.forward, 1.0f);
             if (Input.GetKey(KeyCode.E)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, -camera.transform.forward, 1.0f);
+
+            GetComponent<AudioSource>().volume = GetThrusterVolume(Ship.transform.position);
         }
 
         // Todo: change this to the thruster system.
@@ -92,5 +95,25 @@ public class PlayerController : MonoBehaviour
         //GL.Vertex(Ship.transform.position + rb.velocity * 15.0f);
         GL.Vertex(Vector3.zero);
         GL.End();
+    }
+
+    float GetThrusterVolume(Vector3 PlayerShipPosition)
+    {
+        float MinDistanceSq = 15 * 15;
+        ThrusterPower = 0;
+        if (ThrusterSystem.Thrusters.Count > 0)
+        {
+            foreach (var thruster in ThrusterSystem.Thrusters)
+            {
+                if (Vector3.SqrMagnitude(thruster.Transform.GetPosition() - PlayerShipPosition) < MinDistanceSq)
+                {
+                    ThrusterPower += thruster.Power;
+                }
+                //else Debug.Log("Thruster wasn't close enough");
+            }
+        }
+        else Debug.Log("No thrusters");
+
+        return ThrusterPower / 16.0f;
     }
 }

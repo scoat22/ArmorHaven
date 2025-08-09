@@ -329,7 +329,7 @@ public class TurretSystem : MonoBehaviour
                                 // Test
                                 if (type == TurretType.LightTurret)
                                 {
-                                    SoundSystem.Instance.PlaySustained(1.0f);
+                                    SoundSystem.Instance.PlaySustained(1.0f, TurretGos[i].transform.position);
                                 }
                                 else
                                 {
