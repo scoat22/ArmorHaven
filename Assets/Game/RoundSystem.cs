@@ -6,6 +6,8 @@ using UnityEngine.UI;
 public class RoundSystem : MonoBehaviour
 {
     public static RoundSystem Instance;
+
+    public ShipSystem.ShipType PlayerShipType;
     /// <summary>
     /// Radius.
     /// </summary>
@@ -43,7 +45,7 @@ public class RoundSystem : MonoBehaviour
         if (nShips == 0)
         {
             //Debug.Log("Creating player ship");
-            var PlayerShip = ShipSystem.Instance.AddShip(Vector3.right, team.Allies); // Add player ship.
+            var PlayerShip = ShipSystem.Instance.AddShip(Vector3.right, team.Allies, PlayerShipType); // Add player ship.
             PlayerShip.GetComponent<Ship>().RocketPower *= 4; // Give player a speed advantage.
             PlayerShip.GetComponent<Ship>().IsPlayer = true;
         }

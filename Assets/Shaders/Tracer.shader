@@ -79,13 +79,17 @@ Shader "Custom/Tracer"
                 float Brightness = 5.0;
                 switch(ceil(i.type))
                 {
-                    case 0:
+                    case 0: // Large bullet
                         col = float4(1, 0.294, 0, 1);
                         size = 88;
                         Brightness = 10;
                         break;
-                    case 1:
+                    case 1: // Small bullet
                         //col = float4(0, 1, 0, 1);
+                        col = 0;
+                        size = 0;
+                        break;
+                    case 2: // Small tracer.
                         col = float4(1, 0.694, 0.212, 1);
                         size = 20;
                         break;

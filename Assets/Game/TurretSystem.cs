@@ -60,6 +60,7 @@ public class TurretSystem : MonoBehaviour
         public float PitchVelocity;
         public float Pitch;
         public float ReloadTimeRemaining;
+        public int BulletIdx; // The index of the bullet in the chamber (local to the cartridge).
         public TurretType Type;
 
         // AI stuff
@@ -299,7 +300,10 @@ public class TurretSystem : MonoBehaviour
                 if (int.TryParse(ParentShip.name, out int idx))
                 {
                     // If its the player's turrets, don't fire until the player wants them to.
-                    if (!PlayerAutoAim && Turret.IsPlayer && !Input.GetMouseButton(0)) continue;
+                    if (!PlayerAutoAim && Turret.IsPlayer && !Input.GetMouseButton(0))
+                    {
+                        continue;
+                    }
 
                     // If we can fire
                     if (Turret.HasTarget && Turret.ReloadTimeRemaining == 0)
@@ -310,24 +314,28 @@ public class TurretSystem : MonoBehaviour
                         // Determine if we're close enough to actually shoot and have a chance of hitting the target.
                         if (Vector3.Dot(Turret.AimDirection, Barrel.forward) >= 1.0f - AngleDotTolerance)
                         {
-                            TurretType type = Turret.Type;
-                            TurretModel Model = TurretModels[(int)type];
+                            TurretType TurretType = Turret.Type;
+                            BulletType BulletType= (BulletType)TurretType;
+                            TurretModel Model = TurretModels[(int)TurretType];
+
+                            // Tracer every 3 bullets? Not sure.
+                            if (TurretType == TurretType.LightTurret && Turret.BulletIdx % 3 == 0)
+                            {
+                                BulletType = BulletType.SmallTracer;
+                            }
 
                             Vector3 Velocity = Barrel.forward * Model.BulletSpeed;
-
-                            // Add ship's velocity.
-                            Velocity += ShipSystem.Instance.Ships[idx].GetComponent<Rigidbody>().velocity;
-
+                            Vector3 ShooterVelocity = ShipSystem.Instance.Ships[idx].GetComponent<Rigidbody>().velocity;
                             Vector3 SpawnPosition = Barrel.position + Barrel.forward * BarrelLength;
-                            if (BulletSystem.TryAddBullet(SpawnPosition, Velocity, (BulletSystem.BulletType)type, Turret.IsPlayer))
+                            if (BulletSystem.TryAddBullet(SpawnPosition, Velocity, ShooterVelocity, BulletType, Turret.IsPlayer))
                             {
                                 // Create Muzzle Flash (Set parent to parent of turret so that it doesn't inherit rotation, looks a little better but obviously not 100% accurate).
-                                if(type == TurretType.HeavyTurret) Instantiate(MuzzleFlashPrefab, TurretGos[i].transform.parent);
+                                if(TurretType == TurretType.HeavyTurret) Instantiate(MuzzleFlashPrefab, TurretGos[i].transform.parent);
+
                                 // Sfx
 
-
                                 // Test
-                                if (type == TurretType.LightTurret)
+                                if (TurretType == TurretType.LightTurret)
                                 {
                                     SoundSystem.Instance.PlaySustained(1.0f, TurretGos[i].transform.position);
                                 }
@@ -339,11 +347,11 @@ public class TurretSystem : MonoBehaviour
                                     TurretGos[i].GetComponent<AudioSource>().pitch = Random.Range(0.8f, 1.1f);
                                     TurretGos[i].GetComponent<AudioSource>().Play();
                                 }
-
+                                Turret.BulletIdx++;
                             }
 
                             // Add some randomness to simulate not all machinery/soldiers working at the same exact speed.
-                            Turret.ReloadTimeRemaining = TurretModels[(int)type].ReloadSpeed; //* Random.Range(1.1f, 1.0f);
+                            Turret.ReloadTimeRemaining = TurretModels[(int)TurretType].ReloadSpeed; //* Random.Range(1.1f, 1.0f);
                         }
                     }
                     TurretData[i] = Turret;

@@ -5,7 +5,9 @@ using UnityEngine;
 public struct ShipControls
 {
     public Vector3 DesiredDirection;
-    public float ThrusterPower; // What percent [0, 1] to throttle the thrusters
+    public Vector3 DesiredRotation;
+    public float DirectionPower; // What percent [0, 1] to throttle the thrusters
+    //public float RotationPower;
 }
 
 /// <summary>
@@ -38,62 +40,66 @@ public class Ship : MonoBehaviour
 
     public bool IsPlayer;
 
+    // (LOCAL SPACE) The direction that we'll get the most thrust out of. 
+    public Vector3 IdealDirection;
+    public Vector3 Torque; // Caching this from RigidBody (since it resets internally every frame).
+
+    public Rigidbody rb; // Cache
+
     void Awake()
     {
-        RocketPower = 100000.0f;
+        //RocketPower = 100000.0f;
         Controls = new ShipControls();
-        Controls.ThrusterPower = 1.0f;
+        Controls.DirectionPower = 1.0f;
+        rb = GetComponent<Rigidbody>();
     }
 
-    public void AngularAccelerate(Transform Ship, Vector3 AngularAcceleration, float Power)
+    public void AngularAccelerate(Transform Ship, Vector3 AngularAcceleration)
     {
         var Direction = AngularAcceleration.normalized;
-        var rb = Ship.GetComponent<Rigidbody>();
 
         // Search for Thrusters 
         // Note: GetComponentsInChildren won't find disabled GameObjects.
         var Thrusters = Ship.GetComponentsInChildren<Thruster>();
-        Power = Mathf.Clamp01(Power) * RocketPower;
+        float Amount = Mathf.Clamp01(AngularAcceleration.magnitude) * RocketPower;
 
         foreach (var Thruster in Thrusters)
         {
             Vector3 ToThruster = Thruster.transform.position - Ship.transform.position;
             Vector3 Cross = Vector3.Normalize(Vector3.Cross(AngularAcceleration, ToThruster));
             bool IsCorrectDirection = Vector3.Dot(Thruster.transform.forward, Cross) < -0.1f;
-
-            // This seems to be enough. Now just need to modulate power. 
             if (IsCorrectDirection)
             {
-                Thrust(rb, Thruster, Power);
+                Thrust(rb, Thruster, Amount);
             }
         }
     }
 
-    public void Accelerate(Transform Ship, Vector3 Acceleration, float Power)
+    public void Accelerate(Transform Ship, Vector3 Acceleration, float Amount)
     {
         var Direction = Acceleration.normalized;
-        var rb = Ship.GetComponent<Rigidbody>();
 
         // Search for Thrusters 
         // Note: GetComponentsInChildren won't find disabled GameObjects.
         var Thrusters = Ship.GetComponentsInChildren<Thruster>();
-        Power = Mathf.Clamp01(Power) * RocketPower;
-
+        Amount = Mathf.Clamp01(Amount) * RocketPower;
         foreach (var Thruster in Thrusters)
         {
             // Is the thruster in the direction that we want?
             if (Vector3.Dot(Direction, Thruster.transform.forward) < -0.5f)
             {
-                Thrust(rb, Thruster, Power);
+                //Debug.LogFormat("Thrusting by {0:N0}", Amount);
+                Thrust(rb, Thruster, Amount);
             }
         }
     }
 
-    void Thrust(Rigidbody Ship, Thruster Thruster, float Power)
+    void Thrust(Rigidbody Ship, Thruster Thruster, float Amount)
     {
-        // We want to add the force AT the location and in the direction of the thruster, if possible. 
-        Ship.AddForceAtPosition(-Thruster.transform.forward * Power, Thruster.transform.position, ForceMode.Force);
         Thruster.Thrust();
+        Vector3 Force = -Thruster.transform.forward * Amount; // Thruster.MaxPower
+        Ship.AddForceAtPosition(Force, Thruster.transform.position, ForceMode.Force);
+        //Debug.LogFormat("Adding force: {0:N0} (Thruster.MaxPower: {1}, Amount: {2})", Force.magnitude, Thruster.MaxPower, Amount);
     }
 
     void OnDrawGizmos()

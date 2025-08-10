@@ -10,6 +10,7 @@ namespace TDLN.CameraControllers
 {
     public class CameraOrbit : MonoBehaviour
     {
+        public static CameraOrbit Instance;
         //public GameObject target;
         public float distance = 10.0f;
         public float MinDistance = 2.0f;
@@ -26,15 +27,23 @@ namespace TDLN.CameraControllers
 
         Vector3 Position;
         public static Vector3 MouseAimPosition;
-        public static Vector3 Velocity;
+        public Vector3 Velocity;
+        Vector3 LastPosition;
         public Image Reticle;
 
         void Start()
         {
+            Instance = this;
             Angles = transform.eulerAngles;
         }
 
         float prevDistance;
+
+        private void FixedUpdate()
+        {
+            //Velocity = (transform.position - LastPosition) / Time.fixedDeltaTime;
+            LastPosition = transform.position;
+        }
 
         void LateUpdate()
         {
@@ -48,6 +57,7 @@ namespace TDLN.CameraControllers
             {
                 Position = target.transform.position;
                 Velocity = target.GetComponent<Rigidbody>().velocity;
+                //Velocity = GetComponent<Rigidbody>().velocity;
             }
 
             if (Input.GetMouseButton(1)) // || Input.GetMouseButton(0))
@@ -131,9 +141,19 @@ namespace TDLN.CameraControllers
             Reticle.transform.position = ScreenPos;
             const float MaxDistance = 800.0f;
             float MaxWidth = 30.0f;
-            Reticle.GetComponent<RectTransform>().sizeDelta = Vector2.one * MaxWidth * Mathf.Clamp(1.0f - Dist / MaxDistance * 0.5f, 0.5f, 1.0f);
+            //Reticle.GetComponent<RectTransform>().sizeDelta = Vector2.one * MaxWidth * Mathf.Clamp(1.0f - Dist / MaxDistance * 0.5f, 0.5f, 1.0f);
 
             //transform.rotation = Quaternion.LookRotation((MouseAimPosition - transform.position).normalized, Vector3.up);
+        }
+
+        /*private void FixedUpdate()
+        {
+            Reticle.transform.GetChild(0).GetComponent<Image>().color = new Color(1, 1, 1, 0);
+        }*/
+
+        public void ShowHitmarker()
+        {
+            Reticle.transform.GetChild(0).GetComponent<Image>().color = new Color(1, 1, 1, 0.4f);
         }
 
         static float ClampAngle(float angle, float min, float max)

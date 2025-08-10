@@ -7,6 +7,13 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+public enum BulletType
+{
+    Large,
+    Small,
+    SmallTracer,
+}
+
 public class BulletSystem : MonoBehaviour
 {
     public static BulletSystem Instance;
@@ -17,6 +24,7 @@ public class BulletSystem : MonoBehaviour
     [SerializeField] int _MaxBullets;
     public static int MaxBullets = 150;
     static int nBullets;
+    static NativeArray<ShooterInfo> Shooters;
     static NativeArray<Vector3> Positions;  // Position per bullet
     static NativeArray<Vector3> Velocities; // Velocity per bullet
     static NativeArray<BulletInfo> BulletData; // Basically denotes size and color.
@@ -25,9 +33,13 @@ public class BulletSystem : MonoBehaviour
     AudioSource _AudioSource; // Cache AudioSource.
 
     Mesh _Mesh; // lines mesh (rendering all bullets)
+    Mesh _SmokeTrailMesh;
     MeshRenderer _MeshRenderer;
+    MeshRenderer _SmokeTrailMeshRenderer;
+    public Material SmokeTrailMaterial;
     public float BulletDamage = 0.5f;
     public bool SpawnVfxParticles = true;
+    public bool RenderSmokeTrails = true;
 
     [Header("Ricochet")]
     public AudioClip[] RicochetNoises;
@@ -44,10 +56,12 @@ public class BulletSystem : MonoBehaviour
         public float Mass;
     }
 
-    public enum BulletType
+    // Used for smoke trail rendering
+    public struct ShooterInfo
     {
-        Large,
-        Small,
+        public float TimeFired;
+        public Vector3 Position;
+        public Vector3 Velocity;
     }
 
     public struct BulletInfo
@@ -63,13 +77,22 @@ public class BulletSystem : MonoBehaviour
         Instance = this;
         MaxBullets = _MaxBullets;
         _AudioSource = GetComponent<AudioSource>();
+        Shooters = new NativeArray<ShooterInfo>(MaxBullets, Allocator.Persistent);
         Positions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         Velocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         BulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent);
         _Mesh = MeshUtility.CreateLinesMesh(MaxBullets);
+        _SmokeTrailMesh = MeshUtility.CreateLinesMesh(MaxBullets);
 
         GetComponent<MeshFilter>().mesh = _Mesh;
         _MeshRenderer = GetComponent<MeshRenderer>();
+
+        var go = new GameObject("SmokeTrail");
+        go.transform.SetParent(transform);
+        go.AddComponent<MeshFilter>().mesh = _SmokeTrailMesh;
+        _SmokeTrailMeshRenderer = go.AddComponent<MeshRenderer>();
+        _SmokeTrailMeshRenderer.material = SmokeTrailMaterial;
+        _SmokeTrailMeshRenderer.shadowCastingMode = ShadowCastingMode.Off;
         /*var buffer = new ComputeBuffer(BulletTypes.Count, sizeof(float) * 5);
         buffer.SetData(BulletTypes);
         GetComponent<MeshRenderer>().material.SetBuffer("TracerTypes", buffer);*/
@@ -78,9 +101,34 @@ public class BulletSystem : MonoBehaviour
 
     void OnDestroy()
     {
+        Shooters.Dispose();
         Positions.Dispose();
         Velocities.Dispose();
         BulletData.Dispose();
+    }
+
+    // Type: Basically only changes the look of the projectile.
+    public static bool TryAddBullet(Vector3 Position, Vector3 Velocity, Vector3 ShooterVelocity, BulletType Type = BulletType.Large, bool IsPlayer = false)
+    {
+        if (nBullets < MaxBullets)
+        {
+            Shooters[nBullets] = new ShooterInfo()
+            {
+                TimeFired = Time.time,
+                Position = Position,
+                Velocity = ShooterVelocity
+            };
+            Positions[nBullets] = Position;
+            Velocities[nBullets] = ShooterVelocity + Velocity;
+            BulletData[nBullets] = new BulletInfo() { Type = (int)Type, IsPlayer = IsPlayer };
+            nBullets++;
+
+            // Add smoke
+            //RaymarchGeneric.AddSmoke(Position, 1.0f);
+            return true;
+        }
+        else Debug.LogWarningFormat("MaxBullets {0} reached.", MaxBullets);
+        return false;
     }
 
     // Raycast
@@ -88,6 +136,7 @@ public class BulletSystem : MonoBehaviour
     {
         float dt = Time.fixedDeltaTime;
         int nNewBullets = 0;
+        var NewShooters = new NativeArray<ShooterInfo>(MaxBullets, Allocator.Persistent);
         var NewPositions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         var NewVelocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
         var NewBulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent);
@@ -98,26 +147,7 @@ public class BulletSystem : MonoBehaviour
             // Multiply raycast length by two to avoid going through walls (kinda janky).
             if (Physics.Raycast(Positions[i], Velocities[i], out RaycastHit hit, Velocities[i].magnitude * dt * 2.0f))
             {
-                if (Vector3.Dot(Velocities[i].normalized, hit.normal) < RicochetDotAngleTolerance)
-                {
-                    OnBulletHit(i, hit);
-                    if(SpawnVfxParticles) Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx / Sfx (Audio is attached to prefab).
-                    continue;
-                }
-                else
-                {
-                    Vector3 original = Velocities[i];
-                    // Ricochet.
-                    Velocities[i] = Vector3.Reflect(Velocities[i], hit.normal) * RicochetEnergyLoss;
-
-                    // If its really bouncy, make it sound like metal
-                    //if(hit.collider.material.bounciness )
-                    //_AudioSource.PlayOneShot(RicochetNoises[Random.Range(0, RicochetNoises.Length - 1)]); // Sfx
-                    //SoundSystem.Instance.PlaySound(Sound.Ricochet, hit.point, 1.0f);
-
-                    //Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal)); // Vfx
-                    if (SpawnVfxParticles) Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal));
-                }
+                OnBulletHit(i, hit);
             }
             // Make a sound
             // Make an explosion
@@ -139,6 +169,7 @@ public class BulletSystem : MonoBehaviour
             }
 
             // Copy the old bullet to the new array.
+            NewShooters[nNewBullets] = Shooters[i];
             NewPositions[nNewBullets] = Positions[i];
             NewVelocities[nNewBullets] = Velocities[i];
             NewBulletData[nNewBullets] = BulletData[i];
@@ -146,14 +177,17 @@ public class BulletSystem : MonoBehaviour
         }
 
         // Swap pointer.
+        var TempStartPositions = Shooters;
         var TempPositions = Positions;
         var TempVelocities = Velocities;
         var TempBulletData = BulletData;
+        Shooters = NewShooters;
         Positions = NewPositions;
         Velocities = NewVelocities;
         BulletData = NewBulletData;
         nBullets = nNewBullets;
         // Dispose old
+        TempStartPositions.Dispose();
         TempPositions.Dispose();
         TempVelocities.Dispose();
         TempBulletData.Dispose();
@@ -161,46 +195,74 @@ public class BulletSystem : MonoBehaviour
 
     void OnBulletHit(int idx, RaycastHit hit)
     {
-        // Simplified damage model.
-        if (ShipUtility.TryGetShip(hit.collider.transform, out Ship Ship))
+        if (Vector3.Dot(Velocities[idx].normalized, hit.normal) < RicochetDotAngleTolerance)
         {
-            var Bullet = BulletData[idx];
-            if (Ship.Health > 0)
+            // Simplified damage model.
+            if (ShipUtility.TryGetShip(hit.collider.transform, out Ship Ship))
             {
-                Ship.Health = Mathf.Max(0, Ship.Health - BulletDamage);
+                var Bullet = BulletData[idx];
+                if (Ship.Health > 0)
+                {
+                    Ship.Health = Mathf.Max(0, Ship.Health - BulletDamage);
+                }
+                if (Bullet.IsPlayer)
+                {
+                    int Points = 10;
+                    if (Ship.Health == 0) Points = 120; // If it was a killing blow, add more points;
+                    PlayerController.Instance.AddPoints(Points);
+                    //CameraOrbit.Instance.ShowHitmarker();
+                }
             }
-            if (Bullet.IsPlayer)
+            return;
+            if (hit.collider.TryGetComponent(out Armor Armor))
             {
-                int Points = 10;
-                if (Ship.Health == 0) Points = 120; // If it was a killing blow, add more points;
-                PlayerController.Instance.AddPoints(Points);
+                var Bullet = BulletData[idx];
+
+                if (Armor.Health > 0)
+                {
+                    // Do more damage if the bullet is heavier.
+                    //float Energy = BulletTypes[Bullet.Type].Mass * Velocities[idx].magnitude;
+                    //float Damage = Bullet.Type == 0 ? 0.1f : 0.002f;
+                    float Damage = 0.5f;
+                    Armor.Health = Mathf.Max(0, Armor.Health - Damage);
+                }
+
+                //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
+                if (Bullet.IsPlayer)
+                {
+                    int Points = 10;
+                    // If it was a killing blow, add more points;
+                    //if (Armor.Health == 0) Points = 120;
+
+                    PlayerController.Instance.AddPoints(Points);
+                }
             }
+            //else Debug.Log("Collider didnt have armor", hit.collider);
+            if (SpawnVfxParticles) Instantiate(ImpactPrefab, hit.point, Quaternion.LookRotation(hit.normal));  // Vfx / Sfx (Audio is attached to prefab).
         }
-        return;
-        if (hit.collider.TryGetComponent(out Armor Armor))
+        else
         {
-            var Bullet = BulletData[idx];
+            Vector3 original = Velocities[idx];
+            // Ricochet.
+            Positions[idx] = hit.point;
+            Velocities[idx] = Vector3.Reflect(Velocities[idx], hit.normal) * RicochetEnergyLoss;
 
-            if (Armor.Health > 0)
-            {
-                // Do more damage if the bullet is heavier.
-                //float Energy = BulletTypes[Bullet.Type].Mass * Velocities[idx].magnitude;
-                //float Damage = Bullet.Type == 0 ? 0.1f : 0.002f;
-                float Damage = 0.5f;
-                Armor.Health = Mathf.Max(0, Armor.Health - Damage);
-            }
+            // Let's repair the trail.
+            // For now just set the start/time of the trail
+            var shooter = Shooters[idx];
+            shooter.Position = hit.point;
+            shooter.Velocity = Vector3.Reflect(shooter.Velocity, hit.normal) * RicochetEnergyLoss;
+            shooter.TimeFired = Time.time;
+            Shooters[idx] = shooter;
 
-            //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
-            if (Bullet.IsPlayer)
-            {
-                int Points = 10;
-                // If it was a killing blow, add more points;
-                //if (Armor.Health == 0) Points = 120;
+            // If it has an armor component, play metal sound. Adjust clip/pitch based on thickness of the armor. If no armor component, play a more thud/dirt sound.
+            //if(hit.collider.material.bounciness )
+            //_AudioSource.PlayOneShot(RicochetNoises[Random.Range(0, RicochetNoises.Length - 1)]); // Sfx
+            //SoundSystem.Instance.PlaySound(Sound.Ricochet, hit.point, 1.0f);
 
-                PlayerController.Instance.AddPoints(Points);
-            }
+            //Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal)); // Vfx
+            if (SpawnVfxParticles) Instantiate(SparksPrefab, hit.point, Quaternion.LookRotation(hit.normal));
         }
-        //else Debug.Log("Collider didnt have armor", hit.collider);
     }
 
     float GetRayThicknessThroughPlane(Vector3 rayDirection, Vector3 planeNormal, float planeThickness)
@@ -216,12 +278,8 @@ public class BulletSystem : MonoBehaviour
         if (Time.timeScale > 0)
         {
             RenderBullets(dt);
-
-            // Push bullets forward
-            for (int i = 0; i < nBullets; i++)
-            {
-                Positions[i] += Velocities[i] * dt;
-            }
+            UpdateSmokeTrails(dt);
+            UpdateBullets(dt);
 
             // Test
             //float Range = SmokeRes;
@@ -235,20 +293,45 @@ public class BulletSystem : MonoBehaviour
         }
     }
 
+    void UpdateBullets(float dt)
+    {
+        // Push bullets forward
+        for (int i = 0; i < nBullets; i++)
+        {
+            Positions[i] += Velocities[i] * dt;
+        }
+    }
+
+    void UpdateSmokeTrails(float dt)
+    {
+        for (int i = 0; i < nBullets; i++)
+        {
+            var shooter = Shooters[i];
+            shooter.Position += shooter.Velocity * dt;
+            Shooters[i] = shooter;
+        }
+    }
+
     void RenderBullets(float dt)
     {
         // We could convert this a job very easily.
-        Vector3 CameraVelocity = CameraOrbit.Velocity;
+        Vector3 CameraVelocity = CameraOrbit.Instance.Velocity * dt;
         var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
 
-        var Positions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp);
-        var Normals = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp);
-        var Types = new NativeArray<float>(MaxBullets * 2, Allocator.Temp);
+        var options = NativeArrayOptions.ClearMemory;
+        var Positions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
+        var Normals = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
+        var Types = new NativeArray<float>(MaxBullets * 2, Allocator.Temp, options);
+        var SmokePositions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
+        var SmokeNormals = new NativeArray<Vector4>(MaxBullets * 2, Allocator.Temp, options);
+        var UVs = new NativeArray<float>(MaxBullets * 2, Allocator.Temp, options);
+
         // If index is less than nBullets.
         for (int i = 0; i < nBullets; i++)
         {
             Vector3 p0 = BulletSystem.Positions[i];
-            Vector3 p1 = BulletSystem.Positions[i] + (Velocities[i] - CameraVelocity) * dt;
+            Vector3 p1 = BulletSystem.Positions[i] + Velocities[i] * dt - CameraVelocity;
+            //Vector3 p1 = BulletSystem.Positions[i] + Velocities[i] * dt;
             int i0 = i * 2;
             int i1 = i * 2 + 1;
 
@@ -258,11 +341,21 @@ public class BulletSystem : MonoBehaviour
             Normals[i1] = p1 - p0;
             Types[i0] = BulletData[i].Type;
             Types[i1] = BulletData[i].Type;
+
+            SmokePositions[i0] = Shooters[i].Position;
+            SmokePositions[i1] = p0;
+            Vector3 SmokeNormal = p0 - Shooters[i].Position;
+            // Pack time into the W component.
+            SmokeNormals[i0] = new Vector4(SmokeNormal.x, SmokeNormal.y, SmokeNormal.z, Shooters[i].TimeFired);
+            SmokeNormals[i1] = new Vector4(SmokeNormal.x, SmokeNormal.y, SmokeNormal.z, Time.time); // The final vertex is always "fresh" smoke.
+            UVs[i0] = 0;
+            UVs[i1] = 1;
         }
         // Set the rest to zero. (if index is higher than nBullets).
         for (int i = nBullets * 2; i < MaxBullets * 2; i++)
         {
             Positions[i] = Vector4.zero;
+            SmokePositions[i] = Vector3.zero;
         }
 
         var descriptors = new VertexAttributeDescriptor[3];
@@ -289,39 +382,62 @@ public class BulletSystem : MonoBehaviour
             dimension = 1,
             stream = 2,
         };
-        
+
         _Mesh.SetVertexBufferParams(Positions.Length, descriptors);
         _Mesh.SetVertexBufferData(Positions, 0, 0, Positions.Length, stream: 0, Flags);
         _Mesh.SetVertexBufferData(Normals, 0, 0, Normals.Length, stream: 1, Flags);
         _Mesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 2, Flags);
 
+            descriptors = new VertexAttributeDescriptor[4];
+            descriptors[0] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.Position,
+                format = VertexAttributeFormat.Float32,
+                dimension = 3,
+                stream = 0,
+
+            };
+            descriptors[1] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.Normal,
+                format = VertexAttributeFormat.Float32,
+                dimension = 4,
+                stream = 1,
+
+            };
+            descriptors[2] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.TexCoord0,
+                format = VertexAttributeFormat.Float32,
+                dimension = 1,
+                stream = 2,
+            };
+
+            descriptors[3] = new VertexAttributeDescriptor()
+            {
+                attribute = VertexAttribute.TexCoord1,
+                format = VertexAttributeFormat.Float32,
+                dimension = 1,
+                stream = 3,
+            };
+            _SmokeTrailMesh.SetVertexBufferParams(SmokePositions.Length, descriptors);
+            _SmokeTrailMesh.SetVertexBufferData(SmokePositions, 0, 0, SmokePositions.Length, stream: 0, Flags);
+            _SmokeTrailMesh.SetVertexBufferData(SmokeNormals, 0, 0, SmokeNormals.Length, stream: 1, Flags);
+            _SmokeTrailMesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 2, Flags);
+            _SmokeTrailMesh.SetVertexBufferData(UVs, 0, 0, UVs.Length, stream: 3, Flags);
+
         Positions.Dispose();
         Normals.Dispose();
         Types.Dispose();
+        SmokePositions.Dispose();
+        SmokeNormals.Dispose();
+        UVs.Dispose();
     }
 
     bool OutOfRange(Vector3 Position)
     {
         Vector3 Scale = BoundingBox.localScale;
         return Mathf.Abs(Position.x) > Scale.x || Mathf.Abs(Position.y) > Scale.y || Mathf.Abs(Position.z) > Scale.z;
-    }
-
-    // Type: Basically only changes the look of the projectile.
-    public static bool TryAddBullet(Vector3 Position, Vector3 Velocity, BulletType Type = BulletType.Large, bool IsPlayer = false)
-    {
-        if (nBullets < MaxBullets)
-        {
-            Positions[nBullets] = Position;
-            Velocities[nBullets] = Velocity;
-            BulletData[nBullets] = new BulletInfo() { Type = (int)Type, IsPlayer = IsPlayer };
-            nBullets++;
-
-            // Add smoke
-            //RaymarchGeneric.AddSmoke(Position, 1.0f);
-            return true;
-        }
-        else Debug.LogWarningFormat("MaxBullets {0} reached.", MaxBullets);
-        return false;
     }
 
     public void Clear()

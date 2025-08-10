@@ -38,7 +38,7 @@ public class PlayerController : MonoBehaviour
         right.y = 0;
 
         Vector3 DesiredDirection = Vector3.zero;
-        Vector3 DesiredAngularRotation = Vector3.zero;
+        Vector3 DesiredRotation = Vector3.zero;
 
         // Add velocity with W key, in the direction of the ship's forward vector.
         if (Input.GetKey(KeyCode.W)) DesiredDirection += fwd;
@@ -54,10 +54,14 @@ public class PlayerController : MonoBehaviour
         var Ship = ShipSystem.Instance.Ships[0];
         if (Ship)
         {
-            Ship.GetComponent<Ship>().Controls.DesiredDirection = DesiredDirection;
-            if (Input.GetKey(KeyCode.Q)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, camera.transform.forward, 1.0f);
-            if (Input.GetKey(KeyCode.E)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, -camera.transform.forward, 1.0f);
+            //if (Input.GetKey(KeyCode.Q)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, camera.transform.forward, 1.0f);
+            //if (Input.GetKey(KeyCode.E)) Ship.GetComponent<Ship>().AngularAccelerate(Ship.transform, -camera.transform.forward, 1.0f);
 
+            if (Input.GetKey(KeyCode.Q)) DesiredRotation += camera.transform.up;
+            if (Input.GetKey(KeyCode.E)) DesiredRotation += -camera.transform.up;
+
+            Ship.GetComponent<Ship>().Controls.DesiredDirection = DesiredDirection;
+            Ship.GetComponent<Ship>().Controls.DesiredRotation = DesiredRotation;
             GetComponent<AudioSource>().volume = GetThrusterVolume(Ship.transform.position);
         }
 
@@ -101,19 +105,19 @@ public class PlayerController : MonoBehaviour
     {
         float MinDistanceSq = 15 * 15;
         ThrusterPower = 0;
-        if (ThrusterSystem.Thrusters.Count > 0)
+        if (ThrusterSystem.Instance.nThrusters > 0)
         {
-            foreach (var thruster in ThrusterSystem.Thrusters)
+            foreach (var thruster in ThrusterSystem.Instance.Thrusters)
             {
                 if (Vector3.SqrMagnitude(thruster.Transform.GetPosition() - PlayerShipPosition) < MinDistanceSq)
                 {
                     ThrusterPower += thruster.Power;
                 }
-                //else Debug.Log("Thruster wasn't close enough");
+                //else Debug.LogFormat("Thruster wasn't close enough (Position: {0}, Distance: {1}", thruster.Transform.GetPosition(), Vector3.Distance(thruster.Transform.GetPosition(), PlayerShipPosition));
             }
         }
-        else Debug.Log("No thrusters");
+        //else Debug.Log("No thrusters");
 
-        return ThrusterPower / 16.0f;
+        return ThrusterPower / 24.0f;
     }
 }

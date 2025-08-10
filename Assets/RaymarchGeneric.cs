@@ -1,8 +1,6 @@
 ﻿using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.UIElements;
-using static UnityEditor.PlayerSettings;
 
 [ExecuteInEditMode]
 [RequireComponent(typeof(Camera))]

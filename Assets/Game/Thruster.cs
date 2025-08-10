@@ -4,23 +4,30 @@ using UnityEngine;
 
 public class Thruster : MonoBehaviour
 {
+    public float MaxPower = 1.0f;
     float TimeStart;
     float Power;
 
+    private void Start()
+    {
+        Debug.Log("Spawning thruster");
+    }
+
     void Update()
     {
-        ThrusterSystem.Thrusters.Add(new ThrusterSystem.ThrusterData()
+        //ThrusterSystem.AddThruster(new ThrusterSystem.ThrusterData()
+        ThrusterSystem.Instance.AddThruster(new ThrusterSystem.ThrusterData()
         {
             Transform = transform.localToWorldMatrix,
-            Power = Power,
+            Power = Power / MaxPower,
             TimeEnd = TimeStart,
         });
         Power = Mathf.Max(0, Power - Time.deltaTime * 4.0f); // Fade speed.
     }
 
-    public void Thrust(float power = 1.0f)
+    public void Thrust(float Amount = 1.0f)
     {
-        Power = power;
+        Power = MaxPower * Amount;
         TimeStart = Time.time;
     }
 }

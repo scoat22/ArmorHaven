@@ -53,6 +53,8 @@ public class DriverSystem : MonoBehaviour
 
     void Orbit(Ship Ship, Vector3 TargetPos, float DesiredDistance)
     {
+        var rb = Ship.GetComponent<Rigidbody>();
+
         // Go in a circle.
         // Basically we have a desired distance from the center, and we have a desired direction (clockwise or whatever)
         Vector3 ShipPos = Ship.transform.position;
@@ -61,7 +63,7 @@ public class DriverSystem : MonoBehaviour
         float Distance = ToTarget.magnitude;
         ToTarget = Vector3.Lerp(ToTarget, ToNextRingSpot, Distance / DesiredDistance);
         */
-
+        
         ToTarget.y = 0;
         Vector3 DesiredPosition = TargetPos - ToTarget.normalized * DesiredDistance;// DesiredDistance;
         Vector3 ToOrbit = DesiredPosition - ShipPos; // This is nice to debug, shows a line to the orbit ring.
@@ -70,26 +72,11 @@ public class DriverSystem : MonoBehaviour
         // Determine how long it will take us to reach 0 velocity. 
         float DistanceToOrbit = ToOrbit.magnitude;
 
-        var rb = Ship.GetComponent<Rigidbody>();
         bool IsGoingRightWay = Vector3.Dot(rb.velocity.normalized, ToOrbitDir) > 0; 
-        if (IsGoingRightWay && DistanceToOrbit < DistanceToStop(Ship)) ToOrbitDir *= -1; // Reverse thrusters.
+        if (IsGoingRightWay && DistanceToOrbit < ShipUtility.DistanceToStop(Ship, rb)) ToOrbitDir *= -1; // Reverse thrusters.
 
         Debug.DrawLine(ShipPos, DesiredPosition);
         Ship.Controls.DesiredDirection = ToOrbitDir * 10.0f; // Make longer so we can see it.
-    }
-
-    public static float DistanceToStop(Ship Ship)
-    {
-        var rb = Ship.GetComponent<Rigidbody>();
-        float Velocity = rb.velocity.magnitude;
-        // On average there's 4 thrusters engaging, so multiply by 4.
-        float Acceleration = 4.0f * Ship.RocketPower * Time.fixedDeltaTime / rb.mass;
-        return DistanceToReachVelocity(0, Velocity, Acceleration);
-    }
-
-    static float DistanceToReachVelocity(float DesiredVelocity, float Velocity, float Acceleration)
-    {
-        return (Velocity * Velocity - DesiredVelocity * DesiredVelocity) / 2 * Acceleration;
     }
 
     /*private void OnGUI()

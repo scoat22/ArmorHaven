@@ -9,16 +9,13 @@ Shader "Custom/Thruster"
     }
     SubShader
     {
-        // Cutout:
-        //Tags { "RenderType"="TransparentCutout" "Queue"="AlphaTest" }
-
         // Transparent:
-        Tags {"Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent"}
+        Tags { "Queue" = "Transparent" "IgnoreProjector" = "True" "RenderType" = "Transparent" }
         ZWrite Off
         Blend SrcAlpha OneMinusSrcAlpha
         //Cull front 
 
-        LOD 100
+        //LOD 100
 
         Pass
         {
@@ -39,6 +36,7 @@ Shader "Custom/Thruster"
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
                 float TimeEnd : TEXCOORD1;
+                float Power : TEXCOORD2;
             };
 
             sampler2D _MainTex;
@@ -61,6 +59,7 @@ Shader "Custom/Thruster"
                 ThrusterData data = Thrusters[InstanceID];
                 o.vertex = mul(data.Transform, float4(v.vertex.xyz, 1.0));
                 o.TimeEnd = data.TimeEnd;
+                o.Power = data.Power;
 
                 o.vertex = UnityObjectToClipPos(o.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
@@ -74,6 +73,7 @@ Shader "Custom/Thruster"
                 float FadeTime = 4.0;
                 float TimeFactor = saturate(1.0 - abs(i.TimeEnd - _Time.y) * FadeTime);
                 //i.uv.y += 1 - TimeFactor;
+                //i.uv.y *= i.Power;
 
                 // sample the texture
                 float2 uv = i.uv;
@@ -99,6 +99,7 @@ Shader "Custom/Thruster"
                 float4 col = lerp(_Color, _ColorEnd, i.uv.y);
 
                 a *= TimeFactor;
+                //col.gb *= 1.0 - i.Power;
 
                 return float4(col.rgb, a) * 2;
                 return col * 4;

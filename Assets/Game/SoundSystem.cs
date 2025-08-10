@@ -101,7 +101,9 @@ public class SoundSystem : MonoBehaviour
     float SustainMaxVolume;
     public void PlaySustained(float ClipTime, Vector3 Position)
     {
-        SustainMaxVolume = Mathf.Max(SustainMaxVolume, 1.0f / Vector3.Distance(ListenerPosition, Position));
+        // Todo: however many requests were made in the last 0.133 seconds, is the number of guns we want to play (choose the correct clip)
+        const float MinDistance = 10.0f;
+        SustainMaxVolume = Mathf.Max(SustainMaxVolume, MinDistance / Vector3.Distance(ListenerPosition, Position));
         SustainEndTime = Mathf.Max(SustainEndTime, Time.time + ClipTime);
     }
 
@@ -112,11 +114,17 @@ public class SoundSystem : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Sustain test
-        float TimeLeft = SustainEndTime - Time.time;
+        float TimeLeft = Mathf.Max(0, SustainEndTime - Time.time);
         SustainSource.volume = TimeLeft * SustainMaxVolume;
-        SustainMaxVolume -= TimeLeft * dt; // Slowly decrease max volume.
+        SustainMaxVolume = Mathf.Clamp01(SustainMaxVolume - dt); // Slowly decrease max volume.
 
-        ListenerPosition = Listener.transform.position; // Cache.
+        ListenerPosition = Listener.transform.position; // Cache.'
+
+        if(ShipSystem.Instance.nShips > 0)
+        {
+            // Set listened position (midpoint between ship and camera).
+            ListenerPosition = (ShipSystem.Instance.Ships[0].transform.position + Camera.main.transform.position) * 0.5f;
+        }
 
         if (MaxVoices > 0)
         {
