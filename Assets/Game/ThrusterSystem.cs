@@ -72,8 +72,6 @@ public class ThrusterSystem : MonoBehaviour
 
                 _Material.SetBuffer("Thrusters", ThrusterBuffer);
 
-                Debug.LogFormat("Rendering {0} thrusters", args[1]);
-
                 Graphics.DrawMeshInstancedIndirect(_Mesh, 0, _Material, Bounds, ArgsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.Off, receiveShadows: false);
                 args.Dispose();
             }

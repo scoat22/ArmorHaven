@@ -1,8 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine;
 using Unity.Collections;
+using UnityEngine;
+using Unity.Mathematics;
 
 public enum Sound
 {
@@ -29,7 +30,18 @@ public class SoundSystem : MonoBehaviour
     //Dictionary<Sound, HashSet<int>> SoundIndex = new Dictionary<Sound, HashSet<int>>();
     public bool UseTestHotkeys = false;
 
-    public AudioSource SustainSource;
+    public AudioClip[] MachineGunClips;
+    public AudioSource[] SustainSources;
+
+    // Sustain
+    float LastBulletFiredTime = -100;
+    float SustainMaxVolume;
+    float SustainChannelVolume; // A master volume on
+    float LastLoudBulletTime = -100; // The time since a bullet was fired which had a volume over MinChannelVolume.
+    public float SustainChannelRestPeriod = 1.5f; // (Seconds) 5 Seconds until we can reach max volume again.
+    public float SustainChannelDecaySpeed = 1.0f;
+    public float SustainMinChannelVolume = 0.1f;
+    public float nNoises = 0.0f;
 
     [System.Serializable]
     public struct AudioData
@@ -65,6 +77,23 @@ public class SoundSystem : MonoBehaviour
             Sources[i].priority = 0;
         }
         Listener = new GameObject("Listener").AddComponent<AudioListener>();
+        SustainSources = new AudioSource[MachineGunClips.Length];
+        for (int i = 0; i < MachineGunClips.Length; i++)
+        {
+            SustainSources[i] = new GameObject("Machinegun Clip " + i).AddComponent<AudioSource>();
+            SustainSources[i].transform.SetParent(transform);
+            SustainSources[i].priority = 0; // Test
+            SustainSources[i].loop = true;
+            SustainSources[i].volume = 0.0f;
+            SustainSources[i].spatialBlend = 0.0f;
+            SustainSources[i].clip = MachineGunClips[i];
+            SustainSources[i].Play();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        Voices.Dispose();
     }
 
     public void PlaySound(Sound Sound, Vector3 Position, float Weight = 1.0f)
@@ -96,31 +125,62 @@ public class SoundSystem : MonoBehaviour
 
     // PlaySoundDelayed() -> it'll just add to a List of timers, and each one will just call PlaySound() when the time comes. 
 
-    // Test
-    float SustainEndTime;
-    float SustainMaxVolume;
     public void PlaySustained(float ClipTime, Vector3 Position)
     {
         // Todo: however many requests were made in the last 0.133 seconds, is the number of guns we want to play (choose the correct clip)
         const float MinDistance = 10.0f;
-        SustainMaxVolume = Mathf.Max(SustainMaxVolume, MinDistance / Vector3.Distance(ListenerPosition, Position));
-        SustainEndTime = Mathf.Max(SustainEndTime, Time.time + ClipTime);
+        //SustainMaxVolume = Mathf.Max(SustainMaxVolume, MinDistance / Vector3.Distance(ListenerPosition, Position));
+        SustainMaxVolume = 1.0f; // Test.
+
+        // Reset channel volume back to default if it hasn't been played in a while.
+
+        //else Debug.LogFormat("Time since last loud bullet {0} wasn't greater than SustainChannelRestPeriod {1}", Time.time - LastLoudBulletTime, SustainChannelRestPeriod);
+        if (SustainMaxVolume > SustainMinChannelVolume) LastLoudBulletTime = Time.time;
+
+        LastBulletFiredTime = Time.time;
+        nNoises++;
     }
 
+    /*float Volume;
+    private void OnGUI()
+    {
+        var ScreenPos = new Vector3(Screen.width / 2, Screen.height / 2, 0);
+        var w = 300;
+        var h = 20;
+        GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), "Volume: " + Volume); ScreenPos.y += h;
+        GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), "SustainChannelVolume: " + SustainChannelVolume); ScreenPos.y += h;
+        GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), "Time since last loud bullet: " + (Time.time - LastLoudBulletTime)); ScreenPos.y += h;
+    }*/
 
     // Update is called once per frame
     void Update()
     {
         float dt = Time.deltaTime;
 
-        // Sustain test
-        float TimeLeft = Mathf.Max(0, SustainEndTime - Time.time);
-        SustainSource.volume = TimeLeft * SustainMaxVolume;
-        SustainMaxVolume = Mathf.Clamp01(SustainMaxVolume - dt); // Slowly decrease max volume.
+        // Sustain code (Todo: Put all the sustain data in a struct to make it modular, so we can use it for ricochet/hit sound effects.
+        {
+            int SustainIdx = Mathf.Clamp(Mathf.RoundToInt(nNoises), 0, SustainSources.Length - 1);
+            //if (Input.GetKey(KeyCode.Space)) SustainIdx = 0; // Compare with old version that only uses one machine gun.
+            float TimeSinceLastBullet = Time.time - LastBulletFiredTime;
+            float FadeTime = 0.266f; // 0.133f;
+            SustainSources[SustainIdx].volume = math.remap(0, FadeTime, 1.0f, 0.0f, TimeSinceLastBullet) * SustainChannelVolume;
 
-        ListenerPosition = Listener.transform.position; // Cache.'
+            // Decrease volume of all clips except the current one/
+            for (int i = 0; i < SustainSources.Length; i++)
+            {
+                if (i != SustainIdx) SustainSources[i].volume = 0.0f;
+            }
+            // Decay nNoises
+            nNoises = Mathf.Max(0, nNoises - nNoises * dt / 0.133f);
 
-        if(ShipSystem.Instance.nShips > 0)
+            // Decay the channel if its currently being played, otherwise slowly raise it back up.
+            float velocity = (Time.time - LastLoudBulletTime > SustainChannelRestPeriod) ? -SustainChannelDecaySpeed : SustainChannelDecaySpeed;
+            SustainChannelVolume = Mathf.Clamp(SustainChannelVolume - velocity * dt, SustainMinChannelVolume, 1.0f);
+        }
+
+        ListenerPosition = Listener.transform.position; // Cache.
+
+        if (ShipSystem.Instance.nShips > 0)
         {
             // Set listened position (midpoint between ship and camera).
             ListenerPosition = (ShipSystem.Instance.Ships[0].transform.position + Camera.main.transform.position) * 0.5f;

@@ -68,6 +68,7 @@ Shader "Custom/Tracer"
 
             float4 frag (v2f i) : SV_Target
             {
+                if(i.position.x == 0 && i.position.y == 0 && i.position.z == 0) discard;
                 float FarPlane = _ProjectionParams.z; // Essentially the furthest value possible.
                 //float linearDepth = i.depth / FarPlane; // Normalize depth (0 to 1)
                 float s = i.depth;

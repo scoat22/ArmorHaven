@@ -74,4 +74,12 @@ public static class TurretUtility
         leadDirection = (interceptPoint - shooterPos).normalized;
         return true;
     }
+
+    public static Vector3 RandomVector(float value)
+    {
+        return new Vector3(
+            Random.Range(-value, value),
+            Random.Range(-value, value),
+            Random.Range(-value, value));
+    }
 }

@@ -136,10 +136,11 @@ public class BulletSystem : MonoBehaviour
     {
         float dt = Time.fixedDeltaTime;
         int nNewBullets = 0;
-        var NewShooters = new NativeArray<ShooterInfo>(MaxBullets, Allocator.Persistent);
-        var NewPositions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
-        var NewVelocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent);
-        var NewBulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent);
+        var options = NativeArrayOptions.UninitializedMemory;
+        var NewShooters = new NativeArray<ShooterInfo>(MaxBullets, Allocator.Persistent, options);
+        var NewPositions = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent, options);
+        var NewVelocities = new NativeArray<Vector3>(MaxBullets, Allocator.Persistent, options);
+        var NewBulletData = new NativeArray<BulletInfo>(MaxBullets, Allocator.Persistent, options);
 
         for (int i = 0; i < nBullets; i++)
         {
@@ -213,28 +214,30 @@ public class BulletSystem : MonoBehaviour
                     //CameraOrbit.Instance.ShowHitmarker();
                 }
             }
-            return;
-            if (hit.collider.TryGetComponent(out Armor Armor))
+            if (false)
             {
-                var Bullet = BulletData[idx];
-
-                if (Armor.Health > 0)
+                if (hit.collider.TryGetComponent(out Armor Armor))
                 {
-                    // Do more damage if the bullet is heavier.
-                    //float Energy = BulletTypes[Bullet.Type].Mass * Velocities[idx].magnitude;
-                    //float Damage = Bullet.Type == 0 ? 0.1f : 0.002f;
-                    float Damage = 0.5f;
-                    Armor.Health = Mathf.Max(0, Armor.Health - Damage);
-                }
+                    var Bullet = BulletData[idx];
 
-                //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
-                if (Bullet.IsPlayer)
-                {
-                    int Points = 10;
-                    // If it was a killing blow, add more points;
-                    //if (Armor.Health == 0) Points = 120;
+                    if (Armor.Health > 0)
+                    {
+                        // Do more damage if the bullet is heavier.
+                        //float Energy = BulletTypes[Bullet.Type].Mass * Velocities[idx].magnitude;
+                        //float Damage = Bullet.Type == 0 ? 0.1f : 0.002f;
+                        float Damage = 0.5f;
+                        Armor.Health = Mathf.Max(0, Armor.Health - Damage);
+                    }
 
-                    PlayerController.Instance.AddPoints(Points);
+                    //Debug.LogFormat("Hit a ship. New health: {0}", Ship.Health);
+                    if (Bullet.IsPlayer)
+                    {
+                        int Points = 10;
+                        // If it was a killing blow, add more points;
+                        //if (Armor.Health == 0) Points = 120;
+
+                        PlayerController.Instance.AddPoints(Points);
+                    }
                 }
             }
             //else Debug.Log("Collider didnt have armor", hit.collider);
@@ -318,20 +321,20 @@ public class BulletSystem : MonoBehaviour
         Vector3 CameraVelocity = CameraOrbit.Instance.Velocity * dt;
         var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
 
-        var options = NativeArrayOptions.ClearMemory;
-        var Positions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
-        var Normals = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
-        var Types = new NativeArray<float>(MaxBullets * 2, Allocator.Temp, options);
-        var SmokePositions = new NativeArray<Vector3>(MaxBullets * 2, Allocator.Temp, options);
-        var SmokeNormals = new NativeArray<Vector4>(MaxBullets * 2, Allocator.Temp, options);
-        var UVs = new NativeArray<float>(MaxBullets * 2, Allocator.Temp, options);
+        var options = NativeArrayOptions.UninitializedMemory;
+        int nVertex = 10;
+        var Positions = new NativeArray<Vector3>(MaxBullets * nVertex, Allocator.Temp, options);
+        var Normals = new NativeArray<Vector3>(MaxBullets * nVertex, Allocator.Temp, options);
+        var Types = new NativeArray<float>(MaxBullets * nVertex, Allocator.Temp, options);
+        var SmokePositions = new NativeArray<Vector3>(MaxBullets * nVertex, Allocator.Temp, options);
+        var SmokeNormals = new NativeArray<Vector4>(MaxBullets * nVertex, Allocator.Temp, options);
+        var UVs = new NativeArray<float>(MaxBullets * nVertex, Allocator.Temp, options);
 
         // If index is less than nBullets.
         for (int i = 0; i < nBullets; i++)
         {
             Vector3 p0 = BulletSystem.Positions[i];
             Vector3 p1 = BulletSystem.Positions[i] + Velocities[i] * dt - CameraVelocity;
-            //Vector3 p1 = BulletSystem.Positions[i] + Velocities[i] * dt;
             int i0 = i * 2;
             int i1 = i * 2 + 1;
 
@@ -388,43 +391,43 @@ public class BulletSystem : MonoBehaviour
         _Mesh.SetVertexBufferData(Normals, 0, 0, Normals.Length, stream: 1, Flags);
         _Mesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 2, Flags);
 
-            descriptors = new VertexAttributeDescriptor[4];
-            descriptors[0] = new VertexAttributeDescriptor()
-            {
-                attribute = VertexAttribute.Position,
-                format = VertexAttributeFormat.Float32,
-                dimension = 3,
-                stream = 0,
+        descriptors = new VertexAttributeDescriptor[4];
+        descriptors[0] = new VertexAttributeDescriptor()
+        {
+            attribute = VertexAttribute.Position,
+            format = VertexAttributeFormat.Float32,
+            dimension = 3,
+            stream = 0,
 
-            };
-            descriptors[1] = new VertexAttributeDescriptor()
-            {
-                attribute = VertexAttribute.Normal,
-                format = VertexAttributeFormat.Float32,
-                dimension = 4,
-                stream = 1,
+        };
+        descriptors[1] = new VertexAttributeDescriptor()
+        {
+            attribute = VertexAttribute.Normal,
+            format = VertexAttributeFormat.Float32,
+            dimension = 4,
+            stream = 1,
 
-            };
-            descriptors[2] = new VertexAttributeDescriptor()
-            {
-                attribute = VertexAttribute.TexCoord0,
-                format = VertexAttributeFormat.Float32,
-                dimension = 1,
-                stream = 2,
-            };
+        };
+        descriptors[2] = new VertexAttributeDescriptor()
+        {
+            attribute = VertexAttribute.TexCoord0,
+            format = VertexAttributeFormat.Float32,
+            dimension = 1,
+            stream = 2,
+        };
 
-            descriptors[3] = new VertexAttributeDescriptor()
-            {
-                attribute = VertexAttribute.TexCoord1,
-                format = VertexAttributeFormat.Float32,
-                dimension = 1,
-                stream = 3,
-            };
-            _SmokeTrailMesh.SetVertexBufferParams(SmokePositions.Length, descriptors);
-            _SmokeTrailMesh.SetVertexBufferData(SmokePositions, 0, 0, SmokePositions.Length, stream: 0, Flags);
-            _SmokeTrailMesh.SetVertexBufferData(SmokeNormals, 0, 0, SmokeNormals.Length, stream: 1, Flags);
-            _SmokeTrailMesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 2, Flags);
-            _SmokeTrailMesh.SetVertexBufferData(UVs, 0, 0, UVs.Length, stream: 3, Flags);
+        descriptors[3] = new VertexAttributeDescriptor()
+        {
+            attribute = VertexAttribute.TexCoord1,
+            format = VertexAttributeFormat.Float32,
+            dimension = 1,
+            stream = 3,
+        };
+        _SmokeTrailMesh.SetVertexBufferParams(SmokePositions.Length, descriptors);
+        _SmokeTrailMesh.SetVertexBufferData(SmokePositions, 0, 0, SmokePositions.Length, stream: 0, Flags);
+        _SmokeTrailMesh.SetVertexBufferData(SmokeNormals, 0, 0, SmokeNormals.Length, stream: 1, Flags);
+        _SmokeTrailMesh.SetVertexBufferData(Types, 0, 0, Types.Length, stream: 2, Flags);
+        _SmokeTrailMesh.SetVertexBufferData(UVs, 0, 0, UVs.Length, stream: 3, Flags);
 
         Positions.Dispose();
         Normals.Dispose();

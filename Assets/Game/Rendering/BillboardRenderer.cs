@@ -24,6 +24,16 @@ public class BillboardRenderer : MonoBehaviour
         Instance = this;
         _Mesh = MeshUtility.CreateBillboardQuad();
         _Material = CreateMaterial();
+        Positions = new NativeArray<Vector3>(MaxSprites, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+    }
+
+    private void OnDestroy()
+    {
+        Positions.Dispose();
+        ArgsBuffer?.Dispose();
+        ArgsBuffer = null;
+        PositionsBuffer?.Dispose();
+        PositionsBuffer = null;
     }
 
     Material CreateMaterial()
@@ -37,9 +47,6 @@ public class BillboardRenderer : MonoBehaviour
     private void FixedUpdate()
     {
         nSprites = 0;
-        Positions.Dispose();
-        Positions = new NativeArray<Vector3>(MaxSprites, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
         // Test (Add 10 sprites every fixed update)
         //for (int i = 0; i < 10; i++) AddSprite(new Vector3(i, 0, 0));
     }

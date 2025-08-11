@@ -58,14 +58,12 @@ public class DriverSystem : MonoBehaviour
         // Go in a circle.
         // Basically we have a desired distance from the center, and we have a desired direction (clockwise or whatever)
         Vector3 ShipPos = Ship.transform.position;
-        Vector3 ToTarget = TargetPos - ShipPos;
-        /*Vector3 ToNextRingSpot = TargetPos + Vector3.Cross(ToTarget, Vector3.up).normalized * DesiredDistance;
-        float Distance = ToTarget.magnitude;
-        ToTarget = Vector3.Lerp(ToTarget, ToNextRingSpot, Distance / DesiredDistance);
-        */
-        
-        ToTarget.y = 0;
-        Vector3 DesiredPosition = TargetPos - ToTarget.normalized * DesiredDistance;// DesiredDistance;
+        Vector3 TargetToShip = ShipPos - TargetPos;
+
+        // Don't move in Y axis for now.
+        TargetPos.y = 0;
+        TargetToShip.y = 0;
+        Vector3 DesiredPosition = TargetPos + TargetToShip.normalized * DesiredDistance;// DesiredDistance;
         Vector3 ToOrbit = DesiredPosition - ShipPos; // This is nice to debug, shows a line to the orbit ring.
         Vector3 ToOrbitDir = ToOrbit.normalized;
 
@@ -75,8 +73,17 @@ public class DriverSystem : MonoBehaviour
         bool IsGoingRightWay = Vector3.Dot(rb.velocity.normalized, ToOrbitDir) > 0; 
         if (IsGoingRightWay && DistanceToOrbit < ShipUtility.DistanceToStop(Ship, rb)) ToOrbitDir *= -1; // Reverse thrusters.
 
+        // Let's take velocities into account here.
+        //TurretUtility.CalculateLeadShot(ShipPos, DesiredPosition, Vector3.zero, rb.velocity.magnitude, out Vector3 LeadingShotDir);
+
+        //Ship.Controls.DesiredDirection = LeadingShotDir;
+        Ship.Controls.DesiredDirection = ToOrbitDir;
+
+        // Debug
         Debug.DrawLine(ShipPos, DesiredPosition);
-        Ship.Controls.DesiredDirection = ToOrbitDir * 10.0f; // Make longer so we can see it.
+        var p = ShipPos + rb.velocity.normalized * 10.0f;
+        Debug.DrawLine(p, p + rb.velocity, Color.red);
+        Debug.DrawLine(p, p + Ship.Controls.DesiredDirection * 10.0f, Color.yellow);
     }
 
     /*private void OnGUI()

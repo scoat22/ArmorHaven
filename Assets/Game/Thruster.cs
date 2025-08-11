@@ -8,11 +8,6 @@ public class Thruster : MonoBehaviour
     float TimeStart;
     float Power;
 
-    private void Start()
-    {
-        Debug.Log("Spawning thruster");
-    }
-
     void Update()
     {
         //ThrusterSystem.AddThruster(new ThrusterSystem.ThrusterData()

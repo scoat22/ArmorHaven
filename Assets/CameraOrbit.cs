@@ -24,12 +24,19 @@ namespace TDLN.CameraControllers
         Vector3 Angles;
 
         public Vector3 CameraOffset;
+        public float _ThirdPersonDistance = 40.1f;
+        public float _FirstPersonDistance = -10.1f;
+
+        public static Vector3 MouseAimPosition;
+        Vector3 HoveredObjectVelocity;
 
         Vector3 Position;
-        public static Vector3 MouseAimPosition;
         public Vector3 Velocity;
         Vector3 LastPosition;
         public Image Reticle;
+
+        public enum CameraBehaviour { ThirdPerson, FirstPerson }
+        public CameraBehaviour _CameraBehaviour = CameraBehaviour.ThirdPerson;
 
         void Start()
         {
@@ -43,13 +50,28 @@ namespace TDLN.CameraControllers
         {
             //Velocity = (transform.position - LastPosition) / Time.fixedDeltaTime;
             LastPosition = transform.position;
+
+            // Set aim position of all turrets
+            var Turrets = TurretSystem.Instance.Turrets;
+            var nTurrets = TurretSystem.Instance.nTurrets;
+            for (int i = 0; i < nTurrets; i++)
+            {
+                if (Turrets[i].IsPlayer)
+                {
+                    var Turret = Turrets[i];
+                    Turret.HasTarget = true;
+                    Turret.SpottedEnemy = new SpottedEnemy()
+                    {
+                        Position = MouseAimPosition,
+                        Velocity = HoveredObjectVelocity,
+                    };
+                    Turrets[i] = Turret;
+                }
+            }
         }
 
         void LateUpdate()
         {
-            if (distance < MinDistance) distance = MinDistance;
-            distance -= Input.GetAxis("Mouse ScrollWheel") * _ScrollSpeed * Mathf.Log(distance);
-
             // Target ship 0 (the player).
             var target = ShipSystem.Instance.Ships[0];
 
@@ -60,57 +82,81 @@ namespace TDLN.CameraControllers
                 //Velocity = GetComponent<Rigidbody>().velocity;
             }
 
-            if (Input.GetMouseButton(1)) // || Input.GetMouseButton(0))
+            if(Input.GetKeyDown(KeyCode.Mouse2))
             {
-                Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
-                Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+                // Toggle first/third person
+                if (_CameraBehaviour == CameraBehaviour.ThirdPerson) _CameraBehaviour = CameraBehaviour.FirstPerson;
+                else _CameraBehaviour = CameraBehaviour.ThirdPerson;
+            }
 
-                var pos = Input.mousePosition;
-                var dpiScale = 1f;
-                if (Screen.dpi < 1) dpiScale = 1;
-                if (Screen.dpi < 200) dpiScale = 1;
-                else dpiScale = Screen.dpi / 200f;
+            bool PlayerDead = target.GetComponent<Ship>().Health <= 0;
 
-                if (pos.x < 380 * dpiScale && Screen.height - pos.y < 250 * dpiScale) return;
+            // Go into third person when the player dies.
+            if (_CameraBehaviour == CameraBehaviour.ThirdPerson || PlayerDead)
+            {
+                if (_ThirdPersonDistance < MinDistance)
+                {
+                    Debug.Log("Resetting camera distance");
+                    _ThirdPersonDistance = MinDistance;
+                }
+                _ThirdPersonDistance -= Input.GetAxis("Mouse ScrollWheel") * _ScrollSpeed;// * Mathf.Log(distance);
 
-                // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
-                Cursor.visible = false;
-                Cursor.lockState = CursorLockMode.Locked;
-                Reticle.gameObject.SetActive(false);
+                // Lock player into a sort of "view only" mode when they die.
+                if (Input.GetMouseButton(1) || PlayerDead)
+                {
+                    Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
+                    Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
 
-                Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
+                    // What was the point of these lines?
+                    /*var pos = Input.mousePosition;
+                    var dpiScale = 1f;
+                    if (Screen.dpi < 1) dpiScale = 1;
+                    if (Screen.dpi < 200) dpiScale = 1;
+                    else dpiScale = Screen.dpi / 200f;
+
+                    if (pos.x < 380 * dpiScale && Screen.height - pos.y < 250 * dpiScale) return;*/
+
+                    // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
+                    Cursor.visible = false;
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Reticle.gameObject.SetActive(false);
+
+                    Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
+                }
+                else
+                {
+                    // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
+                    //Cursor.visible = true;
+                    Cursor.lockState = CursorLockMode.None;
+                    Reticle.gameObject.SetActive(true);
+                }
+                distance = _ThirdPersonDistance;
             }
             else
             {
-                // comment out these two lines if you don't want to hide mouse curser or you have a UI button 
-                //Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
-                Reticle.gameObject.SetActive(true);
+                Cursor.lockState = CursorLockMode.Locked;
+                Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
+                Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+                distance = _FirstPersonDistance;
             }
-            Cursor.visible = false;
 
             var rotation = Quaternion.Euler(Angles.y, Angles.x, 0);
             var position = rotation * new Vector3(0.0f, 0.0f, -distance) + Position;
             transform.rotation = rotation;
             transform.position = position + transform.right * CameraOffset.x + transform.up * CameraOffset.y;
 
-            /*if (Math.Abs(prevDistance - distance) > 0.001f)
-            {
-                prevDistance = distance;
-                var rot = Quaternion.Euler(Angles.y, Angles.x, 0);
-                var po = rot * new Vector3(0.0f, 0.0f, -distance) + Position;
-                transform.rotation = rot;
-                transform.position = po;
-            }*/
+            Cursor.visible = false;
 
             var Camera = UnityEngine.Camera.main;
             var MouseRay = Camera.ScreenPointToRay(Input.mousePosition);
             float Dist = Camera.farClipPlane;
             MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
+            HoveredObjectVelocity = Vector3.zero;
             Vector3 ScreenPos = Input.mousePosition;
             if (Physics.Raycast(MouseRay, out RaycastHit hit))
             {
                 MouseAimPosition = hit.point + hit.normal * 0.5f;
+                if (hit.collider.TryGetComponent(out Rigidbody rb)) HoveredObjectVelocity = rb.velocity;
                 Dist = hit.distance;
             }
             // Raycast a camera-facing plane against all enemy ships (if they're in front of the camera)
@@ -122,15 +168,12 @@ namespace TDLN.CameraControllers
             {
                 if (Ships[i].GetComponent<Team>().team == team.Enemies)
                 {
-                    //var plane = new Plane(-transform.forward, Ships[i].transform.position);
                     var plane = new Plane(PlayerShip.transform.position - Ships[i].transform.position, Ships[i].transform.position);
                     if (plane.Raycast(MouseRay, out float HitDistance))
                     {
-                        //float Dot = Vector3.Dot(MouseRay.direction, (Ships[i].transform.position - MouseRay.origin).normalized);
-                        if (Dist > HitDistance)// && MaxDot < Dot)
+                        if (Dist > HitDistance)
                         {
                             Dist = HitDistance;
-                            //MaxDot = Dot;
                             MouseAimPosition = MouseRay.origin + MouseRay.direction * HitDistance;
                         }
                     }

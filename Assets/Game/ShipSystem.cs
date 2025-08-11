@@ -79,8 +79,7 @@ public class ShipSystem : MonoBehaviour
             if(nShips > 1)
                 Ships[1].GetComponent<Ship>().Health = 0;
 
-        if (Input.GetKeyDown(KeyCode.Mouse2))
-            Debug.Break();
+        //if (Input.GetKeyDown(KeyCode.Mouse2)) Debug.Break();
     }
 
     void Explode(GameObject Ship)
@@ -194,7 +193,8 @@ public class ShipSystem : MonoBehaviour
 
                             // If we've reached the desired direction, start moving forwards
                             // (Don't move forwards until reached desired direction.
-                            if (DistanceToIdeal > 0.5f)
+                            //if (DistanceToIdeal > 0.5f)
+                            if(DistanceToIdeal < Ship.Controls.DirectionPower * 0.5f + 0.1f) // More strict if we're making micro-adjustments (the power is smaller)
                             {
                                 Ship.Controls.DesiredDirection = Vector3.zero;
                                 Ship.Controls.DirectionPower = 0.0f;
@@ -274,21 +274,15 @@ public class ShipSystem : MonoBehaviour
             //float Answer = Mathf.Round(ShipUtility.DistanceToReachVelocity(0, _Velocity, _Torque) * Mathf.Rad2Deg);
             float Answer = Mathf.Round(ShipUtility.DistanceToReachVelocity(0, Velocity, Torque));
             // Display as degrees for readability
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("ToStop: {0}°", Mathf.Round(_DistanceToStop * Mathf.Rad2Deg)));
-            ScreenPos.y += h;
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("ToIdeal: {0}°", Mathf.Round(DistanceToIdeal * Mathf.Rad2Deg)));
-            ScreenPos.y += h;
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Velocity: {0}°", Velocity));
-            ScreenPos.y += h;
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Torque: {0}°", Torque));
-            ScreenPos.y += h;
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("({0}² - {1}²) / 2 * {2} = {3}", 0, Velocity, Torque, Answer));
-            ScreenPos.y += h;
-            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Thrust Amount: {0}%", Mathf.Round(_ThrustAmount * 100)));
+            //GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("ToStop: {0}°", Mathf.Round(_DistanceToStop * Mathf.Rad2Deg))); ScreenPos.y += h;
+            //GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("ToIdeal: {0}°", Mathf.Round(DistanceToIdeal * Mathf.Rad2Deg))); ScreenPos.y += h;
+            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Velocity: {0}°", Velocity)); ScreenPos.y += h;
+            GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Torque: {0}°", Torque)); ScreenPos.y += h;
+            //GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("({0}² - {1}²) / 2 * {2} = {3}", 0, Velocity, Torque, Answer)); ScreenPos.y += h;
+            //GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), string.Format("Thrust Amount: {0}%", Mathf.Round(_ThrustAmount * 100))); ScreenPos.y += h;
             if (_ReachedIdeal)
             {
-                ScreenPos.y += h;
-                GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), "Reached ideal");
+                GUI.Label(new Rect(ScreenPos.x, ScreenPos.y, w, h), "Reached ideal"); ScreenPos.y += h;
             }
         }
     }*/
