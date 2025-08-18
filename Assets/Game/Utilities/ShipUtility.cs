@@ -24,6 +24,17 @@ public static class ShipUtility
         return false;
     }
 
+    public static bool TryGetPlayer(out Ship Ship)
+    {
+        if (ShipSystem.Instance.nShips > 0)
+        {
+            Ship = ShipSystem.Instance.Ships[0].GetComponent<Ship>();
+            return true;
+        }
+        Ship = null;
+        return false;
+    }
+
     public static int EnemyCount()
     {
         var Ships = ShipSystem.Instance.Ships;

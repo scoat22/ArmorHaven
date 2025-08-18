@@ -66,7 +66,7 @@ public class ShipSystem : MonoBehaviour
         }
 
         // Test
-        if (Input.GetKeyDown(KeyCode.Alpha1))
+        /*if (Input.GetKeyDown(KeyCode.Alpha1))
             Ships[0].GetComponent<Ship>().Health = 0;
 
         // Kill all enemies
@@ -77,7 +77,7 @@ public class ShipSystem : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Alpha3))
             if(nShips > 1)
-                Ships[1].GetComponent<Ship>().Health = 0;
+                Ships[1].GetComponent<Ship>().Health = 0;*/
 
         //if (Input.GetKeyDown(KeyCode.Mouse2)) Debug.Break();
     }

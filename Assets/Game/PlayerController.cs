@@ -64,13 +64,34 @@ public class PlayerController : MonoBehaviour
             Ship.GetComponent<Ship>().Controls.DesiredDirection = DesiredDirection;
             Ship.GetComponent<Ship>().Controls.DesiredRotation = DesiredRotation;
 
-            GetComponent<AudioSource>().volume = GetThrusterVolume(Ship.transform.position, nThrusters);
+            GetComponent<AudioSource>().volume = GetThrusterVolume(Ship.transform.position, nThrusters) * Time.timeScale;
         }
 
         // Todo: change this to the thruster system.
         //Engine.volume = Mathf.Clamp(Velocity.magnitude * 10.0f, 0.2f, 1.0f);
 
-        if (Input.GetKeyDown(KeyCode.T)) Time.timeScale = 1.0f - Time.timeScale;
+        if (Input.GetKeyDown(KeyCode.Alpha1)) Time.timeScale = 1.0f - Time.timeScale;
+        if (Input.GetKeyDown(KeyCode.Alpha2)) StartCoroutine(StepFixed());
+        if (Input.GetKeyDown(KeyCode.Alpha3)) StartCoroutine(Step());
+        if (Time.timeScale > 0.0f) DeltaTime = Time.deltaTime;
+    }
+
+    IEnumerator StepFixed() 
+    {
+        Time.timeScale = 1.0f;
+        yield return new WaitForFixedUpdate();
+        DeltaTime = Time.fixedDeltaTime;
+        Time.timeScale = 0.0f;
+    }
+
+    public static float DeltaTime;
+    IEnumerator Step()
+    {
+        Time.timeScale = 0.1f;
+        var LastTime = Time.time;
+        yield return null;
+        DeltaTime = Time.time - LastTime;
+        Time.timeScale = 0.0f;
     }
 
     private void FixedUpdate()

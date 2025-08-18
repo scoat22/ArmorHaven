@@ -10,11 +10,10 @@ public class BillboardRenderer : MonoBehaviour
     NativeArray<Vector3> Positions;
     int nSprites;
     const int MaxSprites = 100;
-    [SerializeField] Texture2D _SpriteTexture;
-    [SerializeField] float _Size = 0.02f;
-    static GameObject[] _Bullets;
+    public Texture2D _SpriteTexture;
+    public float _Size = 0.02f;
     static Bounds Bounds;
-    static Material _Material;
+    public Material _Material;
     static Mesh _Mesh;
     static ComputeBuffer ArgsBuffer;
     static ComputeBuffer PositionsBuffer;
@@ -23,7 +22,8 @@ public class BillboardRenderer : MonoBehaviour
     {
         Instance = this;
         _Mesh = MeshUtility.CreateBillboardQuad();
-        _Material = CreateMaterial();
+        _Material.SetTexture("_MainTex", _SpriteTexture);
+        _Material.SetFloat("_Scale", _Size);
         Positions = new NativeArray<Vector3>(MaxSprites, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
     }
 
@@ -36,24 +36,11 @@ public class BillboardRenderer : MonoBehaviour
         PositionsBuffer = null;
     }
 
-    Material CreateMaterial()
-    {
-        var material = new Material(Shader.Find("Custom/Billboard"));
-        material.SetTexture("_MainTex", _SpriteTexture);
-        material.SetFloat("_Scale", _Size);
-        return material;
-    }
-
-    private void FixedUpdate()
-    {
-        nSprites = 0;
-        // Test (Add 10 sprites every fixed update)
-        //for (int i = 0; i < 10; i++) AddSprite(new Vector3(i, 0, 0));
-    }
-
     private void Update()
     {
         Render();
+        if (Time.timeScale > 0) 
+            nSprites = 0;
     }
 
     public void AddSprite(Vector3 Position, SpriteId Sprite = SpriteId.WhiteX)
@@ -102,5 +89,6 @@ public class BillboardRenderer : MonoBehaviour
     public enum SpriteId
     {
         WhiteX,
+        MuzzleFlash
     }
 }

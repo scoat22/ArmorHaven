@@ -46,6 +46,15 @@ public class Ship : MonoBehaviour
 
     public Rigidbody rb; // Cache
 
+    public debug_values DebugValues;
+    public struct debug_values
+    {
+        public float ReadAcceleration;
+        public float DistanceToTargetVelocity;
+        public float VelocityDrift;
+        public bool IsBreaking;
+    }
+
     void Awake()
     {
         //RocketPower = 100000.0f;

@@ -59,7 +59,7 @@ Shader "Custom/Tracer"
 
                 o.position = UnityObjectToClipPos(v.position);
                 o.normal = v.normal;
-                o.type = v.type; // Pack type into W component.
+                o.type = v.type;
                 o.depth = -viewPos.z; // View space Z is negative in front of camera
                 o.WorldPos = worldPos;
                 //if(o.type == 1.0) o.vertex.y += _Size;
@@ -116,7 +116,7 @@ Shader "Custom/Tracer"
 
                 //Alpha -= (1.0 - abs(NdotV)) * 0.5;
 
-                // Make bullets easier to see
+                // Make bullets easier to see as they're coming towards you.
                 Brightness += abs(NdotV) * 5.0;
 
                 // Brighten values

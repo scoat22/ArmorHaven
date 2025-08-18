@@ -12,7 +12,7 @@ public class TurretPrefab : MonoBehaviour
             // Same team as ship.
             //var nTypes = typeof(TurretSystem.TurretType).GetEnumNames().Length;
             const int nTypes = 2;
-            //var Type = TurretSystem.TurretType.HeavyTurret;
+            //var Type = TurretSystem.TurretType.LightTurret;
             // For now make each turret a random type.
             var Type = (TurretSystem.TurretType)(int)(Random.value * nTypes); 
                                                                               

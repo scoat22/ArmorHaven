@@ -8,15 +8,17 @@ public class RoundSystem : MonoBehaviour
     public static RoundSystem Instance;
 
     public ShipSystem.ShipType PlayerShipType;
-    /// <summary>
-    /// Radius.
-    /// </summary>
-    public float SpawnDistance = 300.0f;
+    public int Round = 0;
+    public float SpawnDistance = 450.0f; // Radius.
     public int nEnemiesFirstRound = 4;
     public int MaxEnemies = 4;
     private int nEnemies = 0;
 
-    public int Round = 0;
+    [Header("Time")]
+    public float NewRoundWaitTime = 2.0f;
+    public float SpawningWaveWaitTime = 3.0f;
+
+    
     [Header("UI")]
     public Text RoundText;
     public float FadeSpeed = 1.0f;
@@ -109,7 +111,7 @@ public class RoundSystem : MonoBehaviour
         State = RoundState.NewRound;
         Round++;
 
-        yield return new WaitForSeconds(2.0f);
+        yield return new WaitForSeconds(NewRoundWaitTime);
 
        
         if (MaxEnemies > 0)
@@ -120,7 +122,7 @@ public class RoundSystem : MonoBehaviour
             WavePosition = GetRandPosOnCircle(SpawnDistance);
 
             State = RoundState.SpawningWave;
-            yield return new WaitForSeconds(3.0f);
+            yield return new WaitForSeconds(SpawningWaveWaitTime);
 
             //GetComponent<AudioSource>().PlayOneShot(RoundOverClip);
             SpawnWave(WavePosition, nEnemies, team.Enemies);

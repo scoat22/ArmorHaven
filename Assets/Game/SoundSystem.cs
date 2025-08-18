@@ -158,8 +158,9 @@ public class SoundSystem : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Sustain code (Todo: Put all the sustain data in a struct to make it modular, so we can use it for ricochet/hit sound effects.
+        int SustainIdx = Mathf.Clamp(Mathf.RoundToInt(nNoises), 0, SustainSources.Length - 1);
+        if (Time.timeScale > 0.0f)
         {
-            int SustainIdx = Mathf.Clamp(Mathf.RoundToInt(nNoises), 0, SustainSources.Length - 1);
             //if (Input.GetKey(KeyCode.Space)) SustainIdx = 0; // Compare with old version that only uses one machine gun.
             float TimeSinceLastBullet = Time.time - LastBulletFiredTime;
             float FadeTime = 0.266f; // 0.133f;
@@ -177,8 +178,9 @@ public class SoundSystem : MonoBehaviour
             float velocity = (Time.time - LastLoudBulletTime > SustainChannelRestPeriod) ? -SustainChannelDecaySpeed : SustainChannelDecaySpeed;
             SustainChannelVolume = Mathf.Clamp(SustainChannelVolume - velocity * dt, SustainMinChannelVolume, 1.0f);
         }
+        else SustainSources[SustainIdx].volume = 0.0f;
 
-        ListenerPosition = Listener.transform.position; // Cache.
+            ListenerPosition = Listener.transform.position; // Cache.
 
         if (ShipSystem.Instance.nShips > 0)
         {

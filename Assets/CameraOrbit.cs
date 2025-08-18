@@ -5,6 +5,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using static Unity.Mathematics.math;
 
 namespace TDLN.CameraControllers
 {
@@ -26,6 +27,7 @@ namespace TDLN.CameraControllers
         public Vector3 CameraOffset;
         public float _ThirdPersonDistance = 40.1f;
         public float _FirstPersonDistance = -10.1f;
+        public bool _LockFirstPersonCameraIfTimePaused = true;
 
         public static Vector3 MouseAimPosition;
         Vector3 HoveredObjectVelocity;
@@ -51,21 +53,24 @@ namespace TDLN.CameraControllers
             //Velocity = (transform.position - LastPosition) / Time.fixedDeltaTime;
             LastPosition = transform.position;
 
-            // Set aim position of all turrets
-            var Turrets = TurretSystem.Instance.Turrets;
-            var nTurrets = TurretSystem.Instance.nTurrets;
-            for (int i = 0; i < nTurrets; i++)
+            if (TurretSystem.Instance.PlayerManualAim)
             {
-                if (Turrets[i].IsPlayer)
+                // Set aim position of all turrets
+                var Turrets = TurretSystem.Instance.Turrets;
+                var nTurrets = TurretSystem.Instance.nTurrets;
+                for (int i = 0; i < nTurrets; i++)
                 {
-                    var Turret = Turrets[i];
-                    Turret.HasTarget = true;
-                    Turret.SpottedEnemy = new SpottedEnemy()
+                    if (Turrets[i].IsPlayer)
                     {
-                        Position = MouseAimPosition,
-                        Velocity = HoveredObjectVelocity,
-                    };
-                    Turrets[i] = Turret;
+                        var Turret = Turrets[i];
+                        Turret.HasTarget = true;
+                        Turret.SpottedEnemy = new SpottedEnemy()
+                        {
+                            Position = MouseAimPosition,
+                            Velocity = HoveredObjectVelocity,
+                        };
+                        Turrets[i] = Turret;
+                    }
                 }
             }
         }
@@ -82,7 +87,7 @@ namespace TDLN.CameraControllers
                 //Velocity = GetComponent<Rigidbody>().velocity;
             }
 
-            if(Input.GetKeyDown(KeyCode.Mouse2))
+            if(Input.GetKeyDown(KeyCode.Mouse2) || Input.GetKeyDown(KeyCode.C))
             {
                 // Toggle first/third person
                 if (_CameraBehaviour == CameraBehaviour.ThirdPerson) _CameraBehaviour = CameraBehaviour.FirstPerson;
@@ -94,18 +99,15 @@ namespace TDLN.CameraControllers
             // Go into third person when the player dies.
             if (_CameraBehaviour == CameraBehaviour.ThirdPerson || PlayerDead)
             {
-                if (_ThirdPersonDistance < MinDistance)
-                {
-                    Debug.Log("Resetting camera distance");
-                    _ThirdPersonDistance = MinDistance;
-                }
-                _ThirdPersonDistance -= Input.GetAxis("Mouse ScrollWheel") * _ScrollSpeed;// * Mathf.Log(distance);
+                if (_ThirdPersonDistance < MinDistance) _ThirdPersonDistance = MinDistance;
+                _ThirdPersonDistance -= Input.GetAxis("Mouse ScrollWheel") * _ScrollSpeed * Mathf.Log(_ThirdPersonDistance);
 
                 // Lock player into a sort of "view only" mode when they die.
                 if (Input.GetMouseButton(1) || PlayerDead)
                 {
                     Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
                     Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+                    Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
 
                     // What was the point of these lines?
                     /*var pos = Input.mousePosition;
@@ -120,8 +122,6 @@ namespace TDLN.CameraControllers
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     Reticle.gameObject.SetActive(false);
-
-                    Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
                 }
                 else
                 {
@@ -132,12 +132,15 @@ namespace TDLN.CameraControllers
                 }
                 distance = _ThirdPersonDistance;
             }
-            else
+            // Leave first person view if time is frozen.
+            else if(_LockFirstPersonCameraIfTimePaused && Time.timeScale > 0)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Angles.x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
                 Angles.y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
+                Angles.y = ClampAngle(Angles.y, yMinLimit, yMaxLimit);
                 distance = _FirstPersonDistance;
+                //if(Input.GetMouseButton(1)) { Debug.Log("Pausing"); Debug.Break(); }
             }
 
             var rotation = Quaternion.Euler(Angles.y, Angles.x, 0);
@@ -151,11 +154,12 @@ namespace TDLN.CameraControllers
             var MouseRay = Camera.ScreenPointToRay(Input.mousePosition);
             float Dist = Camera.farClipPlane;
             MouseAimPosition = MouseRay.origin + MouseRay.direction * Dist;
-            HoveredObjectVelocity = Vector3.zero;
+            HoveredObjectVelocity = target ? target.GetComponent<Rigidbody>().velocity : Vector3.zero; // By default use our velocity.
             Vector3 ScreenPos = Input.mousePosition;
             if (Physics.Raycast(MouseRay, out RaycastHit hit))
             {
-                MouseAimPosition = hit.point + hit.normal * 0.5f;
+                //MouseAimPosition = hit.point + hit.normal * 0.5f;
+                MouseAimPosition = hit.point;
                 if (hit.collider.TryGetComponent(out Rigidbody rb)) HoveredObjectVelocity = rb.velocity;
                 Dist = hit.distance;
             }
@@ -182,9 +186,13 @@ namespace TDLN.CameraControllers
             if (Dist < Camera.farClipPlane) ScreenPos = Camera.WorldToScreenPoint(MouseAimPosition);
             ScreenPos.z = 0;
             Reticle.transform.position = ScreenPos;
-            const float MaxDistance = 800.0f;
+            /*const float MaxDistance = 10.0f; //800.0f;
             float MaxWidth = 30.0f;
-            //Reticle.GetComponent<RectTransform>().sizeDelta = Vector2.one * MaxWidth * Mathf.Clamp(1.0f - Dist / MaxDistance * 0.5f, 0.5f, 1.0f);
+            float MinDist = 10.0f;
+            float RayLength = max(0, Dist - MinDist);
+            float Percent = RayLength / MaxDistance;
+            Percent = Mathf.Clamp(1.0f - Percent * 0.5f, 0.5f, 1.0f); // Convert to [0.5, 1.0]
+            Reticle.GetComponent<RectTransform>().sizeDelta = Vector2.one * MaxWidth * Percent;*/
 
             //transform.rotation = Quaternion.LookRotation((MouseAimPosition - transform.position).normalized, Vector3.up);
         }

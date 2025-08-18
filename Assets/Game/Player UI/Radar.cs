@@ -126,7 +126,7 @@ public class Radar : MonoBehaviour
         e.nBlips = 0;
         var Ships = ShipSystem.Instance.Ships;
         var nShips = ShipSystem.Instance.nShips;
-        var Asteroids = BigAsteroidSystem.Instance.Asteroids;
+        
         if(Ships[0] != null) MainShipPosition = Ships[0].transform.position;
 
         // Render enemies
@@ -137,10 +137,14 @@ public class Radar : MonoBehaviour
         }
 
         // Render asteroids.
-        for (int i = 0; i < Asteroids.Length; i++)
+        if (BigAsteroidSystem.Instance != null)
         {
-            if (e.nBlips == e.Blips.Length) break;
-            AddBlip(ref e, MainShipPosition, Asteroids[i], Type.Asteroid);
+            var Asteroids = BigAsteroidSystem.Instance.Asteroids;
+            for (int i = 0; i < Asteroids.Length; i++)
+            {
+                if (e.nBlips == e.Blips.Length) break;
+                AddBlip(ref e, MainShipPosition, Asteroids[i], Type.Asteroid);
+            }
         }
 
         for (int i = e.nBlips; i < e.Blips.Length; i++)
