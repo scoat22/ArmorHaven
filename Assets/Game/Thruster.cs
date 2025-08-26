@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using static ThrusterSystem;
 
 public class Thruster : MonoBehaviour
 {
@@ -24,5 +25,8 @@ public class Thruster : MonoBehaviour
     {
         Power = MaxPower * Amount;
         TimeStart = Time.time;
+
+        // Let's create a light here too
+        //LightRenderer.Instance.AddLight(transform.position, 5.0f, 2.0f, new Color(1.0f, 0.7f, 0.3f));
     }
 }

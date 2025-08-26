@@ -620,7 +620,6 @@ public class BulletSystem : MonoBehaviour
 
     void RenderCurvedSmokeTrails(float dt)
     {
-        // We could convert this a job very easily.
         float3 CameraVelocity = CameraOrbit.Instance.Velocity * dt;
         var Flags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
 
