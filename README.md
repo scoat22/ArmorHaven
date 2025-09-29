@@ -1,0 +1,1 @@
+I made this space game in around a week in 2025. I tried focusing on rewarding the player, with chunky explosion visual and audio effects when they kill enemies. I also wrote the bullet renderer by hand, inspired by videos of real bullet tracers. This project shows off my ability to quickly make performant games with virtually no bugs.
